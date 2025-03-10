@@ -111,9 +111,18 @@ class BaseModel(metaclass=SchemaMeta):
         for fd in fields(self):
             self._field_type_validator(fd)
 
+            try:
+                result = self.validate(getattr(self, fd.name), fd)
+                if result is not None:
+                    setattr(self, fd.name, result)
+            except NotImplementedError:
+                pass
+
             method = getattr(self, f"validate_{fd.name}", None)
             if method and callable(method):
-                setattr(self, fd.name, method(getattr(self, fd.name), field=fd))
+                result = method(getattr(self, fd.name), field=fd)
+                if result is not None:
+                    setattr(self, fd.name, result)
 
     def _inner_schema_value_preprocessor(self, fd: Field):
         value = getattr(self, fd.name)
@@ -194,6 +203,10 @@ class BaseModel(metaclass=SchemaMeta):
     @staticmethod
     def get_formatter_by_name(name: str) -> BaseModelFormatter:
         return BaseModelFormatter.get_formatter(format_name=name)
+
+    def validate(self, value: typing.Any, fd: Field):
+        """Implement this method to validate all fields"""
+        raise NotImplementedError
 
     @classmethod
     def loads(

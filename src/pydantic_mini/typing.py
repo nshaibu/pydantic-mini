@@ -134,7 +134,8 @@ class Attrib:
         for validator in self._validators:
             try:
                 result = validator(instance, getattr(instance, fd.name))
-                setattr(instance, fd.name, result)
+                if result is not None:
+                    setattr(instance, fd.name, result)
             except Exception as e:
                 if isinstance(e, ValidationError):
                     raise
