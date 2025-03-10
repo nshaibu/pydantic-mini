@@ -12,4 +12,6 @@ print(p.dump("json"))
 
 v = MyModel.loads({"name": "John1", "age": 322}, _format="dict")
 print(v)
-import pdb;pdb.set_trace()
+import pdb
+
+pdb.set_trace()

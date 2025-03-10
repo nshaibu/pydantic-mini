@@ -2,7 +2,15 @@ import typing
 import keyword
 from dataclasses import dataclass, fields, Field, field, MISSING, is_dataclass
 from .formatters import BaseModelFormatter
-from .typing import is_mini_annotated, get_type, MiniAnnotated, Attrib, is_collection
+from .typing import (
+    is_mini_annotated,
+    get_type,
+    MiniAnnotated,
+    Attrib,
+    is_collection,
+    DEFAULT_MODEL_CONFIG,
+    ModelConfig,
+)
 from .exceptions import ValidationError
 
 
@@ -17,7 +25,10 @@ class SchemaMeta(type):
 
         new_class = super().__new__(cls, name, bases, attrs, **kwargs)
 
-        return dataclass(new_class)
+        model_config: ModelConfig = getattr(new_class, "model_config", {})
+        print(model_config)
+
+        return dataclass(new_class, **model_config)
 
     @classmethod
     def get_fields(
@@ -90,7 +101,7 @@ class SchemaMeta(type):
 
 class BaseModel(metaclass=SchemaMeta):
 
-    model_config = None
+    model_config = DEFAULT_MODEL_CONFIG
 
     def __post_init__(self):
         """

@@ -19,6 +19,8 @@ __all__ = (
     "is_type",
     "is_mini_annotated",
     "NoneType",
+    "ModelConfig",
+    "DEFAULT_MODEL_CONFIG",
 )
 
 
@@ -26,17 +28,23 @@ __all__ = (
 NoneType = getattr(types, "NoneType", type(None))
 
 
-class ModelConfig(typing.NamedTuple):
-    init = True
-    repr = True
-    eq = True
-    order = False
-    unsafe_hash = False
-    frozen = (False,)
-    match_args = True
-    kw_only = False
-    slots = False
-    weakref_slot = False
+class ModelConfig(typing.TypedDict, total=False):
+    init: bool
+    repr: bool
+    eq: bool
+    order: bool
+    unsafe_hash: bool
+    frozen: bool
+
+
+DEFAULT_MODEL_CONFIG = ModelConfig(
+    init=True,
+    repr=True,
+    eq=True,
+    order=False,
+    unsafe_hash=False,
+    frozen=False,
+)
 
 
 class Attrib:
