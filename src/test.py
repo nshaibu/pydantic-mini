@@ -7,6 +7,7 @@ class MyModel(BaseModel):
     age: MiniAnnotated[int]
 
 
-p = MyModel(name='John', age=22)
+p = MyModel(name="John", age=22)
 print(p)
 
+import pdb;pdb.set_trace()

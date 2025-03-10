@@ -7,7 +7,7 @@ from .exceptions import ValidationError
 __all__ = (
     "Annotated",
     "MiniAnnotated",
-    "Query",
+    "Attrib",
     "get_type",
     "is_optional_type",
     "is_type",
@@ -20,7 +20,7 @@ __all__ = (
 NoneType = getattr(types, "NoneType", type(None))
 
 
-class Query:
+class Attrib:
     __slots__ = (
         "default",
         "default_factory",
@@ -189,7 +189,7 @@ def is_mini_annotated(typ) -> bool:
         origin
         and origin is Annotated
         and hasattr(typ, "__metadata__")
-        and Query in [inst.__class__ for inst in typ.__metadata__]
+        and Attrib in [inst.__class__ for inst in typ.__metadata__]
     )
 
 
@@ -241,11 +241,11 @@ class MiniAnnotated:
     @typing._tp_cache
     def __class_getitem__(cls, params):
         if not isinstance(params, tuple):
-            params = (params, Query())
+            params = (params, Attrib())
 
         if len(params) != 2:
             raise TypeError(
-                "PipelineAnnotated[...] should be used with exactly two arguments (a type and a Query)."
+                "MiniAnnotated[...] should be used with exactly two arguments (a type and a Query)."
             )
 
         typ = params[0]
@@ -255,6 +255,6 @@ class MiniAnnotated:
             raise ValueError("'{}' is not a type".format(params[0]))
 
         query = params[1]
-        if not isinstance(query, Query):
+        if not isinstance(query, Attrib):
             raise TypeError("Parameter '{}' must be instance of Query".format(1))
         return Annotated[typ, query]

@@ -1,35 +1,85 @@
 import typing
-from dataclasses import dataclass, fields, Field
-from .typing import is_mini_annotated, get_type
+import keyword
+from dataclasses import dataclass, fields, Field, field, MISSING
+from .typing import is_mini_annotated, get_type, MiniAnnotated, Attrib
 from .exceptions import ValidationError
 
 
 class SchemaMeta(type):
 
-    def __new__(cls, name, bases, attrs):
+    def __new__(cls, name, bases, attrs, **kwargs):
         parents = [b for b in bases if isinstance(b, SchemaMeta)]
         if not parents:
             return super().__new__(cls, name, bases, attrs)
 
-        cls._validate_annotated_field(attrs)
-        new_class = super().__new__(cls, name, bases, attrs)
+        cls._prepare_model_fields(attrs)
 
-        new_class = dataclass(new_class)
+        new_class = super().__new__(cls, name, bases, attrs, **kwargs)
 
-        # for name, _field in new_class.__dataclass_fields__.items():
-        #     setattr(new_class, name, _field)
-        return new_class
+        return dataclass(new_class)
 
-    @staticmethod
-    def _validate_annotated_field(attrs):
+    @classmethod
+    def get_fields(
+        cls, attrs
+    ) -> typing.List[typing.Tuple[typing.Any, typing.Any, typing.Any]]:
+        field_dict = {}
+
         annotation_fields = attrs.get("__annotations__", {})
+
         for field_name, annotation in annotation_fields.items():
-            if not is_mini_annotated(annotation):
+            field_tuple = field_name, annotation
+            value = MISSING
+            if field_name in attrs:
+                value = attrs[field_name]
+                value = value if isinstance(value, Field) else field(default=value)
+
+            field_tuple = (*field_tuple, value)
+
+            field_dict[field_name] = field_tuple
+
+        # get fields without annotation
+        for field_name, value in field_dict.items():
+            if field_name not in field_dict and isinstance(value, Field):
+                typ = type(value.type)
+                field_dict[field_name] = field_name, typ, value
+
+        return list(field_dict.values())
+
+    @classmethod
+    def _prepare_model_fields(cls, attrs):
+        anns = {}
+        for field_name, annotation, value in cls.get_fields(attrs):
+            if not isinstance(field_name, str) or not field_name.isidentifier():
                 raise TypeError(
-                    "Field '{}' should be annotated with 'MiniAnnotated'.".format(
-                        field_name
-                    )
+                    f"Field names must be valid identifiers: {field_name!r}"
                 )
+            if keyword.iskeyword(field_name):
+                raise TypeError(f"Field names must not be keywords: {field_name!r}")
+
+            if not is_mini_annotated(annotation):
+                if get_type(annotation) is None:
+                    raise TypeError(
+                        f"Field '{field_name}' must be annotated with a real type. {annotation} is not a type"
+                    )
+                annotation = MiniAnnotated[
+                    annotation,
+                    Attrib(
+                        default=value.default, default_factory=value.default_factory
+                    ),
+                ]
+
+            if value is MISSING:
+                attrib = annotation.__metadata__[0]
+                if attrib.has_default():
+                    if attrib.default is not MISSING:
+                        attrs[field_name] = field(default=attrib.default)
+                    else:
+                        attrs[field_name] = field(default_factory=attrib.default_factory)
+
+            anns[field_name] = annotation
+
+        if anns:
+            attrs["__annotations__"] = anns
 
 
 class BaseModel(metaclass=SchemaMeta):
@@ -41,6 +91,7 @@ class BaseModel(metaclass=SchemaMeta):
         """
 
         for fd in fields(self):
+            self._field_type_validator(fd)
             method = getattr(self, f"validate_{fd.name}", None)
             if method and callable(method):
                 setattr(self, fd.name, method(getattr(self, fd.name), field=fd))
@@ -48,7 +99,6 @@ class BaseModel(metaclass=SchemaMeta):
     def _field_type_validator(self, fd: Field):
         value = getattr(self, fd.name, None)
         field_type = fd.type
-        import pdb;pdb.set_trace()
 
         if not is_mini_annotated(field_type):
             raise ValidationError(
@@ -91,4 +141,3 @@ class BaseModel(metaclass=SchemaMeta):
                 return tuple([get_type(_type) for _type in type_args])
         else:
             return (get_type(typ),)
-
