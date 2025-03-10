@@ -233,10 +233,10 @@ class MiniAnnotated:
     __slots__ = ()
 
     def __init_subclass__(cls, **kwargs):
-        raise TypeError(f"Cannot subclass {cls.__module__}.PipelineAnnotated")
+        raise TypeError(f"Cannot subclass {cls.__module__}.MiniAnnotated")
 
     def __new__(cls, *args, **kwargs):
-        raise TypeError("Type PipelineAnnotated cannot be instantiated.")
+        raise TypeError("Type MiniAnnotated cannot be instantiated.")
 
     @typing._tp_cache
     def __class_getitem__(cls, params):
