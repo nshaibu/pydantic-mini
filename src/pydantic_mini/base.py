@@ -183,7 +183,7 @@ class BaseModel(metaclass=SchemaMeta):
 
     @staticmethod
     def get_formatter_by_name(name: str) -> BaseModelFormatter:
-        return BaseModelFormatter.get_formatter(name)
+        return BaseModelFormatter.get_formatter(format_name=name)
 
     @classmethod
     def loads(
@@ -192,4 +192,4 @@ class BaseModel(metaclass=SchemaMeta):
         return cls.get_formatter_by_name(_format).encode(cls, data)
 
     def dump(self, _format: str) -> typing.Any:
-        return self.get_formatter_by_name(_format).decode(self)
+        return self.get_formatter_by_name(_format).decode(instance=self)

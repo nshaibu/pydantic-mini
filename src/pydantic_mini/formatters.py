@@ -70,10 +70,10 @@ class BaseModelFormatter(ABC):
             yield subclass
 
     @classmethod
-    def get_formatter(cls, format_name: str):
+    def get_formatter(cls, *args, format_name: str, **kwargs) -> "BaseModelFormatter":
         for subclass in cls.get_formatters():
             if subclass.format_name == format_name:
-                return subclass
+                return subclass(*args, **kwargs)
         raise KeyError(f"Format {format_name} not found")
 
 
