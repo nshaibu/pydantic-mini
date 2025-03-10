@@ -1,7 +1,8 @@
 import typing
 import keyword
-from dataclasses import dataclass, fields, Field, field, MISSING
-from .typing import is_mini_annotated, get_type, MiniAnnotated, Attrib
+from dataclasses import dataclass, fields, Field, field, MISSING, is_dataclass
+from .formatters import BaseModelFormatter
+from .typing import is_mini_annotated, get_type, MiniAnnotated, Attrib, is_collection
 from .exceptions import ValidationError
 
 
@@ -64,7 +65,10 @@ class SchemaMeta(type):
                 annotation = MiniAnnotated[
                     annotation,
                     Attrib(
-                        default=value.default, default_factory=value.default_factory
+                        default=value.default if isinstance(value, Field) else value,
+                        default_factory=(
+                            value.default_factory if isinstance(value, Field) else value
+                        ),
                     ),
                 ]
 
@@ -74,7 +78,9 @@ class SchemaMeta(type):
                     if attrib.default is not MISSING:
                         attrs[field_name] = field(default=attrib.default)
                     else:
-                        attrs[field_name] = field(default_factory=attrib.default_factory)
+                        attrs[field_name] = field(
+                            default_factory=attrib.default_factory
+                        )
 
             anns[field_name] = annotation
 
@@ -84,6 +90,8 @@ class SchemaMeta(type):
 
 class BaseModel(metaclass=SchemaMeta):
 
+    model_config = None
+
     def __post_init__(self):
         """
         The validation is performed by calling a function named:
@@ -92,9 +100,27 @@ class BaseModel(metaclass=SchemaMeta):
 
         for fd in fields(self):
             self._field_type_validator(fd)
+
             method = getattr(self, f"validate_{fd.name}", None)
             if method and callable(method):
                 setattr(self, fd.name, method(getattr(self, fd.name), field=fd))
+
+    def _inner_schema_value_preprocessor(self, fd: Field):
+        value = getattr(self, fd.name)
+        field_type = fd.type
+
+        status, actual_type = is_collection(field_type)
+        if status:
+            type_args = hasattr(field_type, "__args__") and field_type.__args__ or None
+            if type_args and isinstance(value, (dict, list)):
+                value = value if isinstance(value, list) else [value]
+                inner_type: type = type_args[0]
+                if isinstance(inner_type, BaseModel) or is_dataclass(inner_type):
+                    setattr(
+                        self,
+                        fd.name,
+                        actual_type([inner_type(**value) for val in value]),
+                    )
 
     def _field_type_validator(self, fd: Field):
         value = getattr(self, fd.name, None)
@@ -116,6 +142,8 @@ class BaseModel(metaclass=SchemaMeta):
                 params={"field": fd.name, "annotation": field_type},
             )
 
+        query.execute_field_validators(self, fd)
+
         expected_type = (
             hasattr(field_type, "__args__") and field_type.__args__[0] or None
         )
@@ -123,8 +151,19 @@ class BaseModel(metaclass=SchemaMeta):
             expected_type and self.type_can_be_validated(expected_type) or None
         )
 
+        is_type_collection, _ = is_collection(expected_type)
+
         if expected_type and expected_type is not typing.Any:
-            if not isinstance(value, expected_type):
+            if is_type_collection:
+                actual_type = expected_type.__args__[0]
+                if actual_type:
+                    if any([not isinstance(value, actual_type) for val in value]):
+                        raise TypeError(
+                            "Expected a collection of values of type '{}'. Values: {} ".format(
+                                actual_type, value
+                            )
+                        )
+            elif not isinstance(value, expected_type):
                 raise TypeError(
                     f"Field '{fd.name}' should be of type {expected_type}, "
                     f"but got {type(value).__name__}."
@@ -141,3 +180,16 @@ class BaseModel(metaclass=SchemaMeta):
                 return tuple([get_type(_type) for _type in type_args])
         else:
             return (get_type(typ),)
+
+    @staticmethod
+    def get_formatter_by_name(name: str) -> BaseModelFormatter:
+        return BaseModelFormatter.get_formatter(name)
+
+    @classmethod
+    def loads(
+        cls, data: typing.Any, _format: str
+    ) -> typing.Union[typing.List["BaseModel"], "BaseModel"]:
+        return cls.get_formatter_by_name(_format).encode(cls, data)
+
+    def dump(self, _format: str) -> typing.Any:
+        return self.get_formatter_by_name(_format).decode(self)

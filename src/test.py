@@ -3,11 +3,13 @@ from pydantic_mini.base import BaseModel
 
 
 class MyModel(BaseModel):
-    name: MiniAnnotated[str]
-    age: MiniAnnotated[int]
+    name: str
+    age: int
 
 
 p = MyModel(name="John", age=22)
 print(p)
 
-import pdb;pdb.set_trace()
+import pdb
+
+pdb.set_trace()

@@ -1,14 +1,20 @@
 import types
 import typing
-from dataclasses import MISSING
+import collections
+from collections import abc
+from dataclasses import MISSING, Field
 from typing_extensions import Annotated
 from .exceptions import ValidationError
+
+if typing.TYPE_CHECKING:
+    from .base import BaseModel
 
 __all__ = (
     "Annotated",
     "MiniAnnotated",
     "Attrib",
     "get_type",
+    "is_collection",
     "is_optional_type",
     "is_type",
     "is_mini_annotated",
@@ -18,6 +24,19 @@ __all__ = (
 
 # backward compatibility
 NoneType = getattr(types, "NoneType", type(None))
+
+
+class ModelConfig(typing.NamedTuple):
+    init = True
+    repr = True
+    eq = True
+    order = False
+    unsafe_hash = False
+    frozen = (False,)
+    match_args = True
+    kw_only = False
+    slots = False
+    weakref_slot = False
 
 
 class Attrib:
@@ -32,6 +51,7 @@ class Attrib:
         "min_length",
         "max_length",
         "pattern",
+        "_validators",
     )
 
     def __init__(
@@ -46,6 +66,9 @@ class Attrib:
         min_length: typing.Optional[int] = None,
         max_length: typing.Optional[int] = None,
         pattern: typing.Optional[typing.Union[str, typing.Pattern]] = None,
+        validators: typing.Optional[
+            typing.List[typing.Callable[[typing.Any], typing.Any]]
+        ] = MISSING,
     ):
         self.default = default
         self.default_factory = default_factory
@@ -57,6 +80,13 @@ class Attrib:
         self.min_length = min_length
         self.max_length = max_length
         self.pattern = pattern
+
+        if validators is not MISSING:
+            self._validators = (
+                validators if isinstance(validators, (list, tuple)) else [validators]
+            )
+        else:
+            self._validators = []
 
     def __repr__(self):
         return (
@@ -92,6 +122,16 @@ class Attrib:
             validator = getattr(self, f"_validate_{name}")
             validator(value)
         return True
+
+    def execute_field_validators(self, instance: "BaseModel", fd: Field) -> None:
+        for validator in self._validators:
+            try:
+                result = validator(instance, getattr(instance, fd.name))
+                setattr(instance, fd.name, result)
+            except Exception as e:
+                if isinstance(e, ValidationError):
+                    raise
+                raise ValidationError(str(e)) from e
 
     def _validate_gt(self, value: typing.Any):
         try:
@@ -227,6 +267,19 @@ def is_optional_type(typ):
     elif typ is typing.Optional:
         return True
     return False
+
+
+def is_collection(typ) -> typing.Tuple[bool, typing.Optional[type]]:
+    origin = typing.get_origin(typ)
+    if origin and origin in (
+        list,
+        tuple,
+        frozenset,
+        set,
+        collections.deque,
+    ):
+        return True, origin
+    return False, None
 
 
 class MiniAnnotated:
