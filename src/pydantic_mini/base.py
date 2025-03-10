@@ -26,7 +26,6 @@ class SchemaMeta(type):
         new_class = super().__new__(cls, name, bases, attrs, **kwargs)
 
         model_config: ModelConfig = getattr(new_class, "model_config", {})
-        print(model_config)
 
         return dataclass(new_class, **model_config)
 

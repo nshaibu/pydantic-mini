@@ -1,7 +1,6 @@
 import types
 import typing
 import collections
-from collections import abc
 from dataclasses import MISSING, Field
 from typing_extensions import Annotated
 from .exceptions import ValidationError
