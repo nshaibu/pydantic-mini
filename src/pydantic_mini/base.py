@@ -49,9 +49,16 @@ class SchemaMeta(type):
             field_dict[field_name] = field_tuple
 
         # get fields without annotation
-        for field_name, value in field_dict.items():
+        for field_name, value in attrs.items():
             if field_name not in field_dict and isinstance(value, Field):
-                typ = type(value.type)
+                if value.type is not MISSING:
+                    typ = get_type(value.type)
+                elif value.default is not MISSING:
+                    typ = type(value.default)
+                elif value.default_factory is not MISSING:
+                    typ = type(value.default_factory())
+                else:
+                    continue
                 field_dict[field_name] = field_name, typ, value
 
         return list(field_dict.values())

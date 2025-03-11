@@ -1,3 +1,4 @@
+import re
 import types
 import typing
 import collections
@@ -148,7 +149,6 @@ class Attrib:
                     f"Field value '{value}' is not greater than '{self.gt}'",
                     params={"gt": self.gt},
                 )
-            return value
         except TypeError:
             raise TypeError(
                 f"Unable to apply constraint 'gt' to supplied value {value!r}"
@@ -161,7 +161,6 @@ class Attrib:
                     f"Field value '{value}' is not greater than or equal to '{self.ge}'",
                     params={"ge": self.ge},
                 )
-            return value
         except TypeError:
             raise TypeError(
                 f"Unable to apply constraint 'ge' to supplied value {value!r}"
@@ -174,7 +173,6 @@ class Attrib:
                     f"Field value '{value}' is not less than '{self.lt}'",
                     params={"lt": self.lt},
                 )
-            return value
         except TypeError:
             raise TypeError(
                 f"Unable to apply constraint 'lt' to supplied value {value!r}"
@@ -187,7 +185,6 @@ class Attrib:
                     f"Field value '{value}' is not less than or equal to '{self.le}'",
                     params={"le": self.le},
                 )
-            return value
         except TypeError:
             raise TypeError(
                 f"Unable to apply constraint 'le' to supplied value {value!r}"
@@ -204,7 +201,6 @@ class Attrib:
                         "actual_length": len(value),
                     },
                 )
-            return value
         except TypeError:
             raise TypeError(
                 f"Unable to apply constraint 'min_length' to supplied value {value!r}"
@@ -221,14 +217,14 @@ class Attrib:
                         "actual_length": len(value),
                     },
                 )
-            return value
         except TypeError:
             raise TypeError(
                 f"Unable to apply constraint 'max_length' to supplied value {value!r}"
             )
 
     def _validate_pattern(self, value: typing.Any):
-        pass
+        if re.match(self.pattern, value):
+            pass
 
 
 def is_mini_annotated(typ) -> bool:
