@@ -1,5 +1,6 @@
-import typing
+import csv
 import json
+import typing
 from dataclasses import asdict
 from abc import ABC, abstractmethod
 from .utils import init_class
@@ -86,3 +87,15 @@ class JSONModelFormatter(DictModelFormatter):
 
     def decode(self, instance: "BaseModel") -> str:
         return json.dumps(super().decode(instance))
+
+
+class CSVModelFormatter(DictModelFormatter):
+    format_name = "csv"
+
+    def encode(
+            self, _type: typing.Type["BaseModel"], file: str
+    ):
+        pass
+
+    def decode(self, instance: "BaseModel") -> str:
+        pass
