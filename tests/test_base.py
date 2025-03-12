@@ -141,3 +141,46 @@ class TestBase(unittest.TestCase):
         self.assertEqual(instance2.name, "nshaibu")
         self.assertEqual(len(instance2.school), 2)
 
+    def test_inner_model_creation_with_normal_class(self):
+        class School:
+            def __init__(self, name: str, location: str):
+                self.name: str = name
+                self.location: str = location
+
+        class Student(BaseModel):
+            name: str
+            school: School
+
+        student = Student(name="nafiu", school=School("knust", location="kumasi"))
+        self.assertIsInstance(student, Student)
+        self.assertEqual(student.name, "nafiu")
+        self.assertIsInstance(student.school, School)
+        self.assertEqual(student.school.name, "knust")
+        self.assertEqual(student.school.location, "kumasi")
+
+        # multiple entries
+        with self.assertRaises(TypeError):
+            Student(name="nafiu", school=[School("knust", location="kumasi")])
+
+        class Person(BaseModel):
+            name: str
+            school: typing.List[School]
+
+        person = Person(name="nafiu", school=[School("knust", location="kumasi")])
+        self.assertIsInstance(person, Person)
+        self.assertEqual(person.name, "nafiu")
+        self.assertIsInstance(person.school, list)
+        self.assertEqual(len(person.school), 1)
+        self.assertEqual(person.school[0].name, "knust")
+        self.assertEqual(person.school[0].location, "kumasi")
+
+        instance1 = Person(
+            name="shaibu", school=[{"name": "knust", "location": "kumasi"}, School("legon", location="accra")]
+        )
+        self.assertIsInstance(instance1, Person)
+        self.assertEqual(instance1.name, "shaibu")
+        self.assertIsInstance(instance1.school, list)
+        self.assertEqual(len(instance1.school), 2)
+
+
+
