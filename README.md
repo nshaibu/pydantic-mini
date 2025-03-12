@@ -2,13 +2,13 @@
 
 **pydantic-mini** is a lightweight Python library that extends the functionality of Python's native `dataclass` 
 by providing built-in validation, serialization, and support for custom validators. It is designed to be simple, 
-minimalistic, and based entirely on Python’s standard library, making it perfect for small projects, data validation, 
+minimalistic, and based entirely on Python’s standard library, making it perfect for projects, data validation, 
 and object-relational mapping (ORM) without relying on third-party dependencies.
 
 ## Features
 
 - **Type and Value Validation**: 
-  - Enforces type validation for fields using annotations.
+  - Enforces type validation for fields using field annotations.
   - Includes built-in validators for common field types.
   
 - **Custom Validators**: 
