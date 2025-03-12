@@ -8,9 +8,9 @@ import collections
 from dataclasses import MISSING, Field
 
 if sys.version_info < (3, 9):
-    from typing_extensions import Annotated
+    from typing_extensions import Annotated, get_origin, get_args
 else:
-    from typing import Annotated
+    from typing import Annotated, get_origin, get_args
 
 from .exceptions import ValidationError
 
@@ -248,7 +248,7 @@ class Attrib:
 
 
 def is_mini_annotated(typ) -> bool:
-    origin = typing.get_origin(typ)
+    origin = get_origin(typ)
     return (
         origin
         and origin is Annotated
@@ -270,17 +270,17 @@ def get_type(typ):
         return typ
 
     if is_optional_type(typ):
-        type_args = typing.get_args(typ)
+        type_args = get_args(typ)
         if type_args:
             return get_type(type_args[0])
         else:
             return
 
-    origin = typing.get_origin(typ)
+    origin = get_origin(typ)
     if is_type(origin):
         return origin
 
-    type_args = typing.get_args(typ)
+    type_args = get_args(typ)
     if len(type_args) > 0:
         return get_type(type_args[0])
 
@@ -294,7 +294,7 @@ def is_optional_type(typ):
 
 
 def is_collection(typ) -> typing.Tuple[bool, typing.Optional[type]]:
-    origin = typing.get_origin(typ)
+    origin = get_origin(typ)
     if origin and origin in (
         list,
         tuple,
