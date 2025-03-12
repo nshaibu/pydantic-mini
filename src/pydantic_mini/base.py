@@ -218,7 +218,7 @@ class BaseModel(PreventOverridingMixin, metaclass=SchemaMeta):
 
         if not is_mini_annotated(field_type):
             raise ValidationError(
-                "Field '{}' should be annotated with 'PipelineAnnotated'.".format(
+                "Field '{}' should be annotated with 'MiniAnnotated'.".format(
                     fd.name
                 ),
                 params={"field": fd.name, "annotation": field_type},
