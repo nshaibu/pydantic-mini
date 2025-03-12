@@ -1,5 +1,6 @@
 import typing
 import keyword
+from collections import OrderedDict
 from dataclasses import dataclass, fields, Field, field, MISSING, is_dataclass
 from .formatters import BaseModelFormatter
 from .typing import (
@@ -10,6 +11,7 @@ from .typing import (
     is_collection,
     DEFAULT_MODEL_CONFIG,
     ModelConfig,
+    is_optional_type,
 )
 from .exceptions import ValidationError
 
@@ -23,11 +25,32 @@ class SchemaMeta(type):
 
         cls._prepare_model_fields(attrs)
 
+        cls._fix_fields_with_default_values_order(attrs)
+
         new_class = super().__new__(cls, name, bases, attrs, **kwargs)
 
         model_config: ModelConfig = getattr(new_class, "model_config", {})
 
         return dataclass(new_class, **model_config)
+
+    @classmethod
+    def _fix_fields_with_default_values_order(
+        cls, attrs: typing.Dict[str, typing.Any]
+    ) -> None:
+        # For dataclass fields, those with default values must be defined after the fields without default values.
+        annotations = attrs.get("__annotations__", {})
+        ann_with_defaults = OrderedDict()
+        ann_without_defaults = OrderedDict()
+
+        for attr_name, ann in annotations.items():
+            attrib = ann.__metadata__[0]
+            if attrib.has_default():
+                ann_with_defaults[attr_name] = ann
+            else:
+                ann_without_defaults[attr_name] = ann
+
+        ann_without_defaults.update(ann_with_defaults)
+        attrs["__annotations__"] = ann_without_defaults
 
     @classmethod
     def get_fields(
@@ -64,7 +87,22 @@ class SchemaMeta(type):
         return list(field_dict.values())
 
     @classmethod
-    def _prepare_model_fields(cls, attrs):
+    def _figure_out_field_type_by_default_value(
+        cls, field_name: str, value: Field, attrs: typing.Dict[str, typing.Any]
+    ) -> typing.Any:
+        if isinstance(value, Field):
+            if value.default is not MISSING:
+                return type(value.default)
+            elif value.default_factory is not MISSING:
+                return type(value.default_factory())
+        elif hasattr(value, "__class__"):
+            return value.__class__
+        else:
+            if field_name in attrs:
+                return type(value)
+
+    @classmethod
+    def _prepare_model_fields(cls, attrs: typing.Dict[str, typing.Any]) -> None:
         anns = {}
         for field_name, annotation, value in cls.get_fields(attrs):
             if not isinstance(field_name, str) or not field_name.isidentifier():
@@ -73,6 +111,18 @@ class SchemaMeta(type):
                 )
             if keyword.iskeyword(field_name):
                 raise TypeError(f"Field names must not be keywords: {field_name!r}")
+
+            if annotation is None:
+                if value not in (MISSING, None):
+                    annotation = cls._figure_out_field_type_by_default_value(
+                        field_name, value, attrs
+                    )
+
+                if annotation is None:
+                    raise TypeError(
+                        f"Field '{field_name}' does not have type annotation. "
+                        f"Figuring out field type from default value failed"
+                    )
 
             if not is_mini_annotated(annotation):
                 if get_type(annotation) is None:
@@ -88,6 +138,15 @@ class SchemaMeta(type):
                         ),
                     ),
                 ]
+
+            annotation_type = annotation.__args__[0]
+
+            if is_optional_type(annotation_type):
+                # all optional annotations without default value will have None as default
+                attrib = annotation.__metadata__[0]
+                if not attrib.has_default():
+                    attrib.default = None
+                    attrs[field_name] = field(default=None)
 
             if value is MISSING:
                 attrib = annotation.__metadata__[0]
@@ -105,9 +164,26 @@ class SchemaMeta(type):
             attrs["__annotations__"] = anns
 
 
-class BaseModel(metaclass=SchemaMeta):
+class PreventOverridingMixin:
+
+    _protect = ["__init__", "__post_init__"]
+
+    def __init_subclass__(cls, **kwargs):
+        for attr_name in cls._protect:
+            if attr_name in cls.__dict__ and cls.__name__ != "BaseModel":
+                raise TypeError(
+                    f"Model '{cls.__name__}' cannot override {attr_name!r}. "
+                    f"Consider using __model_init__ for all your custom initialization routes"
+                )
+        super().__init_subclass__(**kwargs)
+
+
+class BaseModel(PreventOverridingMixin, metaclass=SchemaMeta):
 
     model_config = DEFAULT_MODEL_CONFIG
+
+    def __model_init__(self):
+        pass
 
     def __post_init__(self):
         """
@@ -130,6 +206,8 @@ class BaseModel(metaclass=SchemaMeta):
                 result = method(getattr(self, fd.name), field=fd)
                 if result is not None:
                     setattr(self, fd.name, result)
+
+        self.__model_init__()
 
     def _inner_schema_value_preprocessor(self, fd: Field):
         value = getattr(self, fd.name)

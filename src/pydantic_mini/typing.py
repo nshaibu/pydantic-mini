@@ -64,7 +64,7 @@ class Attrib:
 
     def __init__(
         self,
-        default: typing.Optional[str] = MISSING,
+        default: typing.Optional[typing.Any] = MISSING,
         default_factory: typing.Optional[typing.Callable[[], typing.Any]] = MISSING,
         required: bool = False,
         gt: typing.Optional[float] = None,
@@ -124,7 +124,9 @@ class Attrib:
 
         for name in ("gt", "ge", "lt", "le", "min_length", "max_length", "pattern"):
             validation_factor = getattr(self, name, None)
-            if validation_factor is None:
+
+            # Skip the validation if 'validation_factor' is None, or if both 'value' and 'self.default' are None
+            if validation_factor is None or (value is None and self.default is None):
                 continue
 
             validator = getattr(self, f"_validate_{name}")
@@ -208,13 +210,14 @@ class Attrib:
 
     def _validate_max_length(self, value: typing.Any):
         try:
-            if len(value) > self.max_length:
+            actual_length = len(value)
+            if actual_length > self.max_length:
                 raise ValidationError(
-                    "too_long",
+                    f"Value is too long. {actual_length} > {self.max_length}",
                     {
                         "field_type": "Value",
                         "max_length": self.max_length,
-                        "actual_length": len(value),
+                        "actual_length": actual_length,
                     },
                 )
         except TypeError:
@@ -223,8 +226,16 @@ class Attrib:
             )
 
     def _validate_pattern(self, value: typing.Any):
-        if re.match(self.pattern, value):
-            pass
+        try:
+            if not re.match(self.pattern, value):
+                raise ValidationError(
+                    f"Field value '{value}' does not match pattern",
+                    params={"pattern": self.pattern, "value": value},
+                )
+        except TypeError:
+            raise TypeError(
+                f"Unable to apply constraint 'pattern' to supplied value {value!r}"
+            )
 
 
 def is_mini_annotated(typ) -> bool:
