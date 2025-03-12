@@ -246,7 +246,7 @@ class BaseModel(PreventOverridingMixin, metaclass=SchemaMeta):
                 or inspect.isclass(actual_annotated_type)
             ):
                 if isinstance(value, dict):
-                    setattr(self, fd.name, actual_annotated_type(**value))
+                    setattr(self, fd.name, init_class(actual_annotated_type, value))
 
     def _field_type_validator(self, fd: Field):
         value = getattr(self, fd.name, None)
