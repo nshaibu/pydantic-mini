@@ -90,7 +90,7 @@ class Employee(BaseModel):
       if len(value) > 20:
         raise ValidationError("School names cannot be greater than 20")
       
-    # You can apply a general rule or transformation to all fields by implement
+    # You can apply a general rule or transformation to all fields by implementing
     # the method "validate". it takes the argument value and field
     def validate(self, value, field):
       if len(value) > 10:

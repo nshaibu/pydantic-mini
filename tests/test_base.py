@@ -136,7 +136,13 @@ class TestBase(unittest.TestCase):
         self.assertEqual(instance1.school[0].location, "kumasi")
 
         # multiple
-        instance2 = Person(name="nshaibu", school=[{"name": "knust", "location": "kumasi"}, School("legon", location="accra")])
+        instance2 = Person(
+            name="nshaibu",
+            school=[
+                {"name": "knust", "location": "kumasi"},
+                School("legon", location="accra"),
+            ],
+        )
         self.assertIsInstance(instance2, Person)
         self.assertEqual(instance2.name, "nshaibu")
         self.assertEqual(len(instance2.school), 2)
@@ -175,7 +181,11 @@ class TestBase(unittest.TestCase):
         self.assertEqual(person.school[0].location, "kumasi")
 
         instance1 = Person(
-            name="shaibu", school=[{"name": "knust", "location": "kumasi"}, School("legon", location="accra")]
+            name="shaibu",
+            school=[
+                {"name": "knust", "location": "kumasi"},
+                School("legon", location="accra"),
+            ],
         )
         self.assertIsInstance(instance1, Person)
         self.assertEqual(instance1.name, "shaibu")
@@ -219,7 +229,10 @@ class TestBase(unittest.TestCase):
         self.assertEqual(person.school_name, "knust")
 
         with self.assertRaises(ValidationError):
-            Person(name="nafiu", school_name="kwame nkrumah university of science and technology")
+            Person(
+                name="nafiu",
+                school_name="kwame nkrumah university of science and technology",
+            )
 
         with self.assertRaises(ValidationError):
             Person(name="very long user name", school_name="knust")
@@ -242,7 +255,10 @@ class TestBase(unittest.TestCase):
         self.assertEqual(person.school_name, "knust")
 
         with self.assertRaises(ValidationError):
-            Person(name="nafiu", school_name="kwame nkrumah university of science and technology")
+            Person(
+                name="nafiu",
+                school_name="kwame nkrumah university of science and technology",
+            )
 
         with self.assertRaises(ValidationError):
             Person(name="verrrry looooooooong naaaaame", school_name="knust")
@@ -288,4 +304,3 @@ class TestBase(unittest.TestCase):
         person = Person(name="nafiu", school_name="knust")
         self.assertEqual(person.name, "NAFIU")
         self.assertEqual(person.school_name, "KNUST")
-
