@@ -110,3 +110,34 @@ class TestBase(unittest.TestCase):
         instance = self.MyModel.loads(params, _format="dict")
         self.assertIsInstance(instance, list)
         self.assertEqual(len(instance), len(params))
+
+    def test_inner_model_creation_with_dict_and_list(self):
+        class School(BaseModel):
+            name: str
+            location: str
+
+        class Person(BaseModel):
+            name: str
+            school: typing.List[School]
+
+        instance = Person(name="nafiu", school=[School("knust", location="kumasi")])
+        self.assertIsInstance(instance, Person)
+        self.assertEqual(instance.name, "nafiu")
+        self.assertEqual(instance.school[0].name, "knust")
+        self.assertEqual(instance.school[0].location, "kumasi")
+
+        # convert dict to BaseModel test
+        instance1 = Person(
+            name="shaibu", school=[{"name": "knust", "location": "kumasi"}]
+        )
+        self.assertIsInstance(instance1, Person)
+        self.assertEqual(instance1.name, "shaibu")
+        self.assertEqual(instance1.school[0].name, "knust")
+        self.assertEqual(instance1.school[0].location, "kumasi")
+
+        # multiple
+        instance2 = Person(name="nshaibu", school=[{"name": "knust", "location": "kumasi"}, School("legon", location="accra")])
+        self.assertIsInstance(instance2, Person)
+        self.assertEqual(instance2.name, "nshaibu")
+        self.assertEqual(len(instance2.school), 2)
+

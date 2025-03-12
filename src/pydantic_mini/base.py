@@ -1,5 +1,6 @@
 import typing
 import keyword
+import inspect
 from collections import OrderedDict
 from dataclasses import dataclass, fields, Field, field, MISSING, is_dataclass
 from .formatters import BaseModelFormatter
@@ -12,7 +13,9 @@ from .typing import (
     DEFAULT_MODEL_CONFIG,
     ModelConfig,
     is_optional_type,
+    is_builtin_type,
 )
+from .utils import init_class
 from .exceptions import ValidationError
 
 
@@ -178,6 +181,7 @@ class BaseModel(PreventOverridingMixin, metaclass=SchemaMeta):
         """
 
         for fd in fields(self):
+            self._inner_schema_value_preprocessor(fd)
             self._field_type_validator(fd)
 
             try:
@@ -199,17 +203,40 @@ class BaseModel(PreventOverridingMixin, metaclass=SchemaMeta):
         value = getattr(self, fd.name)
         field_type = fd.type
 
-        status, actual_type = is_collection(field_type)
+        actual_annotated_type = field_type.__args__[0]
+
+        status, actual_type = is_collection(actual_annotated_type)
         if status:
-            type_args = hasattr(field_type, "__args__") and field_type.__args__ or None
+            type_args = (
+                hasattr(actual_annotated_type, "__args__")
+                and actual_annotated_type.__args__
+                or None
+            )
             if type_args and isinstance(value, (dict, list)):
                 value = value if isinstance(value, list) else [value]
                 inner_type: type = type_args[0]
-                if isinstance(inner_type, BaseModel) or is_dataclass(inner_type):
+                if is_builtin_type(inner_type):
+                    setattr(
+                        self, fd.name, actual_type([inner_type(val) for val in value])
+                    )
+                elif (
+                    isinstance(inner_type, BaseModel)
+                    or is_dataclass(inner_type)
+                    or inspect.isclass(inner_type)
+                ):
                     setattr(
                         self,
                         fd.name,
-                        actual_type([inner_type(**value) for val in value]),
+                        actual_type(
+                            [
+                                (
+                                    init_class(inner_type, val)
+                                    if isinstance(val, dict)
+                                    else val
+                                )
+                                for val in value
+                            ]
+                        ),
                     )
 
     def _field_type_validator(self, fd: Field):

@@ -29,6 +29,7 @@ __all__ = (
     "NoneType",
     "ModelConfig",
     "DEFAULT_MODEL_CONFIG",
+    "is_builtin_type",
 )
 
 
@@ -304,6 +305,11 @@ def is_collection(typ) -> typing.Tuple[bool, typing.Optional[type]]:
     ):
         return True, origin
     return False, None
+
+
+def is_builtin_type(typ):
+    typ = typ if isinstance(typ, type) else type(typ)
+    return typ.__module__ in ("builtins", "__builtins__")
 
 
 class MiniAnnotated:
