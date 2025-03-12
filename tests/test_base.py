@@ -182,5 +182,110 @@ class TestBase(unittest.TestCase):
         self.assertIsInstance(instance1.school, list)
         self.assertEqual(len(instance1.school), 2)
 
+    def test_validation_for_all_fields(self):
+        class Person(BaseModel):
+            name: str
+            school_name: str
 
+            def validate(self, value, fd):
+                if len(value) > 10:
+                    raise ValidationError("Value too long")
+
+        instance = Person(name="nafiu", school_name="knust")
+        self.assertEqual(instance.school_name, "knust")
+        self.assertEqual(instance.name, "nafiu")
+
+        with self.assertRaises(ValidationError):
+            Person(name="loooong-user-name", school_name="knust")
+
+        with self.assertRaises(ValidationError):
+            Person(name="nafiu", school_name="loooong-school-name")
+
+    def test_custom_field_validator(self):
+        def validate_name(instance, value):
+            if len(value) > 10:
+                raise ValidationError("Value too long")
+
+        def validate_school_name(instance, value):
+            if len(value) > 6:
+                raise ValidationError("Value too long")
+
+        class Person(BaseModel):
+            name: MiniAnnotated[str, Attrib(validators=[validate_name])]
+            school_name: MiniAnnotated[str, Attrib(validators=[validate_school_name])]
+
+        person = Person(name="nafiu", school_name="knust")
+        self.assertEqual(person.name, "nafiu")
+        self.assertEqual(person.school_name, "knust")
+
+        with self.assertRaises(ValidationError):
+            Person(name="nafiu", school_name="kwame nkrumah university of science and technology")
+
+        with self.assertRaises(ValidationError):
+            Person(name="very long user name", school_name="knust")
+
+    def test_validators_model_method(self):
+        class Person(BaseModel):
+            name: str
+            school_name: str
+
+            def validate_school_name(self, value, fd):
+                if len(value) > 6:
+                    raise ValidationError("Value too long")
+
+            def validate_name(self, value, fd):
+                if len(value) > 10:
+                    raise ValidationError("Value too long")
+
+        person = Person(name="nafiu", school_name="knust")
+        self.assertEqual(person.name, "nafiu")
+        self.assertEqual(person.school_name, "knust")
+
+        with self.assertRaises(ValidationError):
+            Person(name="nafiu", school_name="kwame nkrumah university of science and technology")
+
+        with self.assertRaises(ValidationError):
+            Person(name="verrrry looooooooong naaaaame", school_name="knust")
+
+    def test_model_field_method_validators_can_transform_field_value(self):
+        class Person(BaseModel):
+            name: str
+            school_name: str
+
+            def validate_school_name(self, value, fd):
+                return value.upper()
+
+            def validate_name(self, value, fd):
+                return value.upper()
+
+        person = Person(name="nafiu", school_name="knust")
+        self.assertEqual(person.name, "NAFIU")
+        self.assertEqual(person.school_name, "KNUST")
+
+    def test_model_custom_field_validators_can_transform_field_value(self):
+        def validate_school_name(instance, value):
+            return value.upper()
+
+        def validate_name(instance, value):
+            return value.upper()
+
+        class Person(BaseModel):
+            name: MiniAnnotated[str, Attrib(validators=[validate_name])]
+            school_name: MiniAnnotated[str, Attrib(validators=[validate_school_name])]
+
+        person = Person(name="nafiu", school_name="knust")
+        self.assertEqual(person.name, "NAFIU")
+        self.assertEqual(person.school_name, "KNUST")
+
+    def test_all_field_validator_method_can_transform_field_value(self):
+        class Person(BaseModel):
+            name: str
+            school_name: str
+
+            def validate(self, value, fd):
+                return value.upper()
+
+        person = Person(name="nafiu", school_name="knust")
+        self.assertEqual(person.name, "NAFIU")
+        self.assertEqual(person.school_name, "KNUST")
 

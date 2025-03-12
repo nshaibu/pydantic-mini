@@ -193,7 +193,7 @@ class BaseModel(PreventOverridingMixin, metaclass=SchemaMeta):
 
             method = getattr(self, f"validate_{fd.name}", None)
             if method and callable(method):
-                result = method(getattr(self, fd.name), field=fd)
+                result = method(getattr(self, fd.name), fd)
                 if result is not None:
                     setattr(self, fd.name, result)
 
