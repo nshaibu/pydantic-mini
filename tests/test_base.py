@@ -1,8 +1,8 @@
 import unittest
 import typing
 from dataclasses import field
-from ..pydantic_mini import BaseModel, MiniAnnotated, Attrib
-from ..pydantic_mini.exceptions import ValidationError
+from pydantic_mini import BaseModel, MiniAnnotated, Attrib
+from pydantic_mini.exceptions import ValidationError
 
 
 class TestBase(unittest.TestCase):
