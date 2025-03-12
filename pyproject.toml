@@ -9,7 +9,7 @@ authors = [
     {name = "nshaibu", email = "nafiushaibu1@gmail.com"},
 ]
 description="Dataclass with validation"
-keywords=["pydantic-mini", "Schema", "ORM", "dataclss", "pydantic"]
+keywords=["pydantic-mini", "Schema", "ORM", "dataclass", "pydantic", "data-validation", "simple", "dataclass with vaidation"]
 readme = "README.md"
 license = { file = "LICENSE" }
 dependencies = [
