@@ -25,32 +25,11 @@ class SchemaMeta(type):
 
         cls._prepare_model_fields(attrs)
 
-        cls._fix_fields_with_default_values_order(attrs)
-
         new_class = super().__new__(cls, name, bases, attrs, **kwargs)
 
         model_config: ModelConfig = getattr(new_class, "model_config", {})
 
         return dataclass(new_class, **model_config)
-
-    @classmethod
-    def _fix_fields_with_default_values_order(
-        cls, attrs: typing.Dict[str, typing.Any]
-    ) -> None:
-        # For dataclass fields, those with default values must be defined after the fields without default values.
-        annotations = attrs.get("__annotations__", {})
-        ann_with_defaults = OrderedDict()
-        ann_without_defaults = OrderedDict()
-
-        for attr_name, ann in annotations.items():
-            attrib = ann.__metadata__[0]
-            if attrib.has_default():
-                ann_with_defaults[attr_name] = ann
-            else:
-                ann_without_defaults[attr_name] = ann
-
-        ann_without_defaults.update(ann_with_defaults)
-        attrs["__annotations__"] = ann_without_defaults
 
     @classmethod
     def get_fields(
@@ -103,7 +82,9 @@ class SchemaMeta(type):
 
     @classmethod
     def _prepare_model_fields(cls, attrs: typing.Dict[str, typing.Any]) -> None:
-        anns = {}
+        ann_with_defaults = OrderedDict()
+        ann_without_defaults = OrderedDict()
+
         for field_name, annotation, value in cls.get_fields(attrs):
             if not isinstance(field_name, str) or not field_name.isidentifier():
                 raise TypeError(
@@ -140,16 +121,16 @@ class SchemaMeta(type):
                 ]
 
             annotation_type = annotation.__args__[0]
+            attrib = annotation.__metadata__[0]
 
             if is_optional_type(annotation_type):
-                # all optional annotations without default value will have None as default
-                attrib = annotation.__metadata__[0]
+                # all optional annotations without default value will have
+                # None as default
                 if not attrib.has_default():
                     attrib.default = None
                     attrs[field_name] = field(default=None)
 
             if value is MISSING:
-                attrib = annotation.__metadata__[0]
                 if attrib.has_default():
                     if attrib.default is not MISSING:
                         attrs[field_name] = field(default=attrib.default)
@@ -158,10 +139,15 @@ class SchemaMeta(type):
                             default_factory=attrib.default_factory
                         )
 
-            anns[field_name] = annotation
+            if attrib.has_default():
+                ann_with_defaults[field_name] = annotation
+            else:
+                ann_without_defaults[field_name] = annotation
 
-        if anns:
-            attrs["__annotations__"] = anns
+        ann_without_defaults.update(ann_with_defaults)
+
+        if ann_without_defaults:
+            attrs["__annotations__"] = ann_without_defaults
 
 
 class PreventOverridingMixin:
@@ -173,7 +159,7 @@ class PreventOverridingMixin:
             if attr_name in cls.__dict__ and cls.__name__ != "BaseModel":
                 raise TypeError(
                     f"Model '{cls.__name__}' cannot override {attr_name!r}. "
-                    f"Consider using __model_init__ for all your custom initialization routes"
+                    f"Consider using __model_init__ for all your custom initialization"
                 )
         super().__init_subclass__(**kwargs)
 

@@ -8,7 +8,7 @@ and object-relational mapping (ORM) without relying on third-party dependencies.
 ## Features
 
 - **Type and Value Validation**: 
-  - Enforces type validation for fields using custom annotations.
+  - Enforces type validation for fields using annotations.
   - Includes built-in validators for common field types.
   
 - **Custom Validators**: 

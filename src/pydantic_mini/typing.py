@@ -125,7 +125,8 @@ class Attrib:
         for name in ("gt", "ge", "lt", "le", "min_length", "max_length", "pattern"):
             validation_factor = getattr(self, name, None)
 
-            # Skip the validation if 'validation_factor' is None, or if both 'value' and 'self.default' are None
+            # Skip the validation if 'validation_factor' is None, or if both 'value'
+            # and 'self.default' are None
             if validation_factor is None or (value is None and self.default is None):
                 continue
 

@@ -88,3 +88,25 @@ class TestBase(unittest.TestCase):
         p = self.UsingOptionalDataClass()
         self.assertEqual(p.value, None)
         self.assertEqual(p.name, None)
+
+    def test_model_creation_with_dict(self):
+        param = {"name": "nafiu", "age": 12}
+        instance = self.MyModel.loads(param, _format="dict")
+        self.assertEqual(instance.name, "nafiu")
+        self.assertEqual(instance.age, 12)
+
+    def test_model_serialization_with_dict(self):
+        instance = self.MyModel(name="nafiu", age=12)
+        _dict = instance.dump(_format="dict")
+        self.assertIsInstance(_dict, dict)
+        self.assertEqual(_dict, {"name": "nafiu", "age": 12})
+
+    def test_multiple_model_creation_with_dict(self):
+        params = [
+            {"name": "nafiu", "age": 12},
+            {"name": "shaibu", "age": 13},
+            {"name": "nshaibu", "age": 14},
+        ]
+        instance = self.MyModel.loads(params, _format="dict")
+        self.assertIsInstance(instance, list)
+        self.assertEqual(len(instance), len(params))

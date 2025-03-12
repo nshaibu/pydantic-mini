@@ -80,7 +80,7 @@ class BaseModelFormatter(ABC):
 class DictModelFormatter(BaseModelFormatter):
     format_name = "dict"
 
-    def encode(
+    def _encode(
         self, _type: typing.Type["BaseModel"], obj: typing.Dict[str, typing.Any]
     ) -> "BaseModel":
         kwargs = get_function_call_args(_type.__init__, obj)
@@ -93,6 +93,23 @@ class DictModelFormatter(BaseModelFormatter):
         # force execute post init again for normal field validation
         instance.__post_init__()
         return instance
+
+    def encode(
+        self,
+        _type: typing.Type["BaseModel"],
+        obj: typing.Union[
+            typing.Dict[str, typing.Any], typing.List[typing.Dict[str, typing.Any]]
+        ],
+    ) -> typing.Union["BaseModel", typing.List["BaseModel"]]:
+        if isinstance(obj, dict):
+            return self._encode(_type, obj)
+        elif isinstance(obj, list):
+            content = []
+            for item in obj:
+                content.append(self._encode(_type, item))
+            return content
+        else:
+            raise TypeError("Object must be dict or list")
 
     def decode(self, instance: "BaseModel") -> typing.Dict[str, typing.Any]:
         return asdict(instance)
