@@ -31,8 +31,8 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 [project.urls]
-"Issue Tracker"="https://github.com/nshaibu/event_pipeline/issues"
-CI="https://github.com/nshaibu/event_pipeline/actions"
+"Issue Tracker"="https://github.com/nshaibu/pydantic-mini/issues"
+CI="https://github.com/nshaibu/pydantic-mini/actions"
 [project.optional-dependencies]
 dev = [
     "coverage>=7.4.1",

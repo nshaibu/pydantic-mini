@@ -322,7 +322,7 @@ class MiniAnnotated:
 
         if len(params) != 2:
             raise TypeError(
-                "MiniAnnotated[...] should be used with exactly two arguments (a type and a Query)."
+                "MiniAnnotated[...] should be used with exactly two arguments (a type and an Attrib)."
             )
 
         typ = params[0]
