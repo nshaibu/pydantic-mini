@@ -92,9 +92,7 @@ class JSONModelFormatter(DictModelFormatter):
 class CSVModelFormatter(DictModelFormatter):
     format_name = "csv"
 
-    def encode(
-            self, _type: typing.Type["BaseModel"], file: str
-    ):
+    def encode(self, _type: typing.Type["BaseModel"], file: str):
         pass
 
     def decode(self, instance: "BaseModel") -> str:

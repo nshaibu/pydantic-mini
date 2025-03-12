@@ -304,3 +304,48 @@ class TestBase(unittest.TestCase):
         person = Person(name="nafiu", school_name="knust")
         self.assertEqual(person.name, "NAFIU")
         self.assertEqual(person.school_name, "KNUST")
+
+    def test_union_test_annotation_validator_types_in_union(self):
+        class Person(BaseModel):
+            name: str
+            location: typing.Union[str, int]
+
+        person = Person(name="nafiu", location="kumasi")
+        self.assertEqual(person.name, "nafiu")
+        self.assertEqual(person.location, "kumasi")
+
+        person = Person(name="nafiu", location=12)
+        self.assertEqual(person.name, "nafiu")
+        self.assertEqual(person.location, 12)
+
+        with self.assertRaises(TypeError):
+            Person(name="nafiu", location=54.554)
+
+    def test_dataclass_composition_association(self):
+        class School(BaseModel):
+            name: str
+            location: str
+
+        class Person(BaseModel):
+            name: str
+            school: School
+
+        person = Person(name="nafiu", school=School(name="knust", location="kumasi"))
+        self.assertEqual(person.name, "nafiu")
+        self.assertEqual(person.school.name, "knust")
+        self.assertEqual(person.school.location, "kumasi")
+
+        person1 = Person(name="nafiu", school={"name": "knust", "location": "kumasi"})
+        self.assertEqual(person1.name, "nafiu")
+        self.assertEqual(person1.school.name, "knust")
+        self.assertEqual(person1.school.location, "kumasi")
+
+    def test_normal_class_composition_association(self):
+        class School:
+            def __init__(self, name: str, location: str):
+                self.name = name
+                self.location = location
+
+        class Person(BaseModel):
+            name: str
+            school: School

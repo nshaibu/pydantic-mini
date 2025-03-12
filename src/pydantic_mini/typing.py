@@ -339,5 +339,5 @@ class MiniAnnotated:
 
         query = params[1]
         if not isinstance(query, Attrib):
-            raise TypeError("Parameter '{}' must be instance of Query".format(1))
+            raise TypeError("Parameter '{}' must be instance of Attrib".format(1))
         return Annotated[typ, query]

@@ -204,14 +204,14 @@ class BaseModel(PreventOverridingMixin, metaclass=SchemaMeta):
         field_type = fd.type
 
         actual_annotated_type = field_type.__args__[0]
+        type_args = (
+            hasattr(actual_annotated_type, "__args__")
+            and actual_annotated_type.__args__
+            or None
+        )
 
         status, actual_type = is_collection(actual_annotated_type)
         if status:
-            type_args = (
-                hasattr(actual_annotated_type, "__args__")
-                and actual_annotated_type.__args__
-                or None
-            )
             if type_args and isinstance(value, (dict, list)):
                 value = value if isinstance(value, list) else [value]
                 inner_type: type = type_args[0]
@@ -238,6 +238,15 @@ class BaseModel(PreventOverridingMixin, metaclass=SchemaMeta):
                             ]
                         ),
                     )
+        elif type_args is None and actual_annotated_type:
+            actual_annotated_type = get_type(actual_annotated_type)
+            if (
+                isinstance(actual_annotated_type, BaseModel)
+                or is_dataclass(actual_annotated_type)
+                or inspect.isclass(actual_annotated_type)
+            ):
+                if isinstance(value, dict):
+                    setattr(self, fd.name, actual_annotated_type(**value))
 
     def _field_type_validator(self, fd: Field):
         value = getattr(self, fd.name, None)
