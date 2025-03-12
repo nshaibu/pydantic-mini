@@ -215,9 +215,6 @@ class BaseModel(PreventOverridingMixin, metaclass=SchemaMeta):
     def _field_type_validator(self, fd: Field):
         value = getattr(self, fd.name, None)
         field_type = fd.type
-        import pdb
-
-        pdb.set_trace()
 
         if not is_mini_annotated(field_type):
             raise ValidationError(
