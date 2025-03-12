@@ -60,6 +60,13 @@ You can define your own validators.
 from pydantic_mini import BaseModel, MiniAnnotated, Attrib
 from pydantic_mini.exceptions import ValidationError
 
+# NOTE: All validators can be used for field values transformation
+# by returning the transformed value from the validator function or method.
+
+# NOTE: Validators must raise ValidationError if validation condition fails.
+
+# NOTE: pydantic_mini use type annotation to enforce type constraints.
+
 # Custom validation for not accepting name kofi
 def kofi_not_accepted(instance, value: str):
     if value == "kofi":
@@ -74,14 +81,20 @@ def kofi_not_accepted(instance, value: str):
 class Employee(BaseModel):
     name: MiniAnnotated[str, Attrib(max_length=20, validators=[kofi_not_accepted])]
     age: MiniAnnotated[int, Attrib(default=40, gt=20)]
-    email: MiniAnnotated[str, Attrib(pattern="/^\S+@\S+\.\S+$/")]
+    email: MiniAnnotated[str, Attrib(pattern=r"^\S+@\S+\.\S+$")]
     school: str
     
     # You can define validators by adding a method with the name 
     # "validate_<FIELD_NAME>" e.g to validate school name
-    def validate_school(self, value):
+    def validate_school(self, value, field):
       if len(value) > 20:
         raise ValidationError("School names cannot be greater than 20")
+      
+    # You can apply a general rule or transformation to all fields by implement
+    # the method "validate". it takes the argument value and field
+    def validate(self, value, field):
+      if len(value) > 10:
+        raise ValidationError("Too long")
 
 ```
 
