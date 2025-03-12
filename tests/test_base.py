@@ -19,7 +19,7 @@ class TestBase(unittest.TestCase):
 
         class AnnotatedDataClass(BaseModel):
             email: MiniAnnotated[
-                str, Attrib(pattern=r"^[^@]+@[^@]+\.[^@]+$", max_length=13)
+                str, Attrib(pattern=r"^[^@]+@[^@]+\.[^@]+$", max_length=13)  # noqa:
             ]
             value: MiniAnnotated[int, Attrib(gt=4, lt=20, default=5)]
 
