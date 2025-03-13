@@ -184,11 +184,6 @@ class BaseModel(PreventOverridingMixin, metaclass=SchemaMeta):
         pass
 
     def __post_init__(self, *args, **kwargs) -> None:
-        """
-        The validation is performed by calling a function named:
-            `validate_<field_name>(self, value, field) -> field.type`
-        """
-
         for fd in fields(self):
             self._inner_schema_value_preprocessor(fd)
             self._field_type_validator(fd)

@@ -1,6 +1,7 @@
 import unittest
 import typing
-from dataclasses import field
+from unittest.mock import patch
+from dataclasses import field, InitVar
 from pydantic_mini import BaseModel, MiniAnnotated, Attrib
 from pydantic_mini.exceptions import ValidationError
 
@@ -349,3 +350,26 @@ class TestBase(unittest.TestCase):
         class Person(BaseModel):
             name: str
             school: School
+
+        person = Person(name="nafiu", school=School(name="knust", location="kumasi"))
+        self.assertEqual(person.name, "nafiu")
+        self.assertEqual(person.school.name, "knust")
+        self.assertEqual(person.school.location, "kumasi")
+
+        person1 = Person(name="nafiu", school={"name": "knust", "location": "kumasi"})
+        self.assertEqual(person1.name, "nafiu")
+        self.assertEqual(person1.school.name, "knust")
+        self.assertEqual(person1.school.location, "kumasi")
+
+    def test_init_model_is_call(self):
+        class Person(BaseModel):
+            name: str
+            school: InitVar[str]
+
+        person = Person(name="nafiu")
+        self.assertEqual(person.name, "nafiu")
+        self.assertEqual(person.school, None)
+
+        with patch.object(Person, "__model_init__", return_value=None) as mock_init:
+            Person(name="nafiu", school="knust")
+            mock_init.assert_called_once_with("knust")
