@@ -14,6 +14,8 @@ from .typing import (
     ModelConfig,
     is_optional_type,
     is_builtin_type,
+    is_initvar_type,
+    is_class_var_type,
 )
 from .utils import init_class
 from .exceptions import ValidationError
@@ -108,6 +110,13 @@ class SchemaMeta(type):
                         f"Figuring out field type from default value failed"
                     )
 
+            if is_initvar_type(annotation) or is_class_var_type(annotation):
+                # let's ignore init-var and class-var, dataclass will take care of them
+                value = attrs.get(field_name, None)
+                ann_with_defaults[field_name] = annotation
+                attrs[field_name] = value.default if isinstance(value, Field) else value
+                continue
+
             if not is_mini_annotated(annotation):
                 if get_type(annotation) is None:
                     raise TypeError(
@@ -171,10 +180,10 @@ class BaseModel(PreventOverridingMixin, metaclass=SchemaMeta):
 
     model_config = DEFAULT_MODEL_CONFIG
 
-    def __model_init__(self):
+    def __model_init__(self, *args, **kwargs) -> None:
         pass
 
-    def __post_init__(self):
+    def __post_init__(self, *args, **kwargs) -> None:
         """
         The validation is performed by calling a function named:
             `validate_<field_name>(self, value, field) -> field.type`
@@ -197,7 +206,7 @@ class BaseModel(PreventOverridingMixin, metaclass=SchemaMeta):
                 if result is not None:
                     setattr(self, fd.name, result)
 
-        self.__model_init__()
+        self.__model_init__(*args, **kwargs)
 
     def _inner_schema_value_preprocessor(self, fd: Field):
         value = getattr(self, fd.name)

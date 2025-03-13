@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import inspect
 import re
 import sys
 import types
 import typing
 import collections
-from dataclasses import MISSING, Field
+from dataclasses import MISSING, Field, InitVar
 
 if sys.version_info < (3, 9):
     from typing_extensions import Annotated, get_origin, get_args
@@ -30,6 +31,9 @@ __all__ = (
     "ModelConfig",
     "DEFAULT_MODEL_CONFIG",
     "is_builtin_type",
+    "InitVar",
+    "is_initvar_type",
+    "is_class_var_type",
 )
 
 
@@ -264,6 +268,18 @@ def is_type(typ):
     except TypeError:
         is_typ = False
     return is_typ
+
+
+def is_initvar_type(typ):
+    if hasattr(typ, "type"):
+        if isinstance(typ, InitVar):
+            return typ.__class__.__name__ == "InitVar"
+        return hasattr(typ, "__name__") and typ.__name__ == "InitVar"
+    return False
+
+
+def is_class_var_type(typ) -> bool:
+    return typ is typing.ClassVar or get_origin(typ) is typing.ClassVar
 
 
 def get_type(typ):
