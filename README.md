@@ -57,8 +57,10 @@ class Person(BaseModel):
 You can define your own validators.
 
 ```python
+import typing
 from pydantic_mini import BaseModel, MiniAnnotated, Attrib
 from pydantic_mini.exceptions import ValidationError
+
 
 # NOTE: All validators can be used for field values transformation
 # by returning the transformed value from the validator function or method.
@@ -69,32 +71,44 @@ from pydantic_mini.exceptions import ValidationError
 
 # Custom validation for not accepting name kofi
 def kofi_not_accepted(instance, value: str):
-    if value == "kofi":
-        # validators must raise ValidationError when validation fails.
-        raise ValidationError("Age must be a positive number.")
-    
-    # If you want to apply a transformation and save the result into the model, 
-    # return the transformed result you want to save. For instance, if you want the names to be capitalized, 
-    # return the capitalized version.
-    return value.upper()
+  if value == "kofi":
+    # validators must raise ValidationError when validation fails.
+    raise ValidationError("Age must be a positive number.")
+
+  # If you want to apply a transformation and save the result into the model, 
+  # return the transformed result you want to save. For instance, if you want the names to be capitalized, 
+  # return the capitalized version.
+  return value.upper()
+
 
 class Employee(BaseModel):
-    name: MiniAnnotated[str, Attrib(max_length=20, validators=[kofi_not_accepted])]
-    age: MiniAnnotated[int, Attrib(default=40, gt=20)]
-    email: MiniAnnotated[str, Attrib(pattern=r"^\S+@\S+\.\S+$")]
-    school: str
-    
-    # You can define validators by adding a method with the name 
-    # "validate_<FIELD_NAME>" e.g to validate school name
-    def validate_school(self, value, field):
-      if len(value) > 20:
-        raise ValidationError("School names cannot be greater than 20")
-      
-    # You can apply a general rule or transformation to all fields by implementing
-    # the method "validate". it takes the argument value and field
-    def validate(self, value, field):
-      if len(value) > 10:
-        raise ValidationError("Too long")
+  name: MiniAnnotated[str, Attrib(max_length=20, validators=[kofi_not_accepted])]
+  age: MiniAnnotated[int, Attrib(default=40, gt=20)]
+  email: MiniAnnotated[str, Attrib(pattern=r"^\S+@\S+\.\S+$")]
+  school: str
+
+  # You can define validators by adding a method with the name 
+  # "validate_<FIELD_NAME>" e.g to validate school name
+  def validate_school(self, value, field):
+    if len(value) > 20:
+      raise ValidationError("School names cannot be greater than 20")
+
+  # You can apply a general rule or transformation to all fields by implementing
+  # the method "validate". it takes the argument value and field
+  def validate(self, value, field):
+    if len(value) > 10:
+      raise ValidationError("Too long")
+
+
+# implement model __model_init__
+class C(BaseModel):
+  i: int
+  j: typing.Optional[int]
+  database: InitVar[typing.Optional[DatabaseType]] = None
+
+  def __model_init__(self, database):
+    if self.j is None and database is not None:
+      self.j = database.lookup('j')
 
 ```
 
