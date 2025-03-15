@@ -431,6 +431,14 @@ class TestBase(unittest.TestCase):
         person = Person(names=["a", "b", "c"])
         self.assertEqual(person.names, ["a", "b", "c"])
 
+    def test_configuration_for_model(self):
+        class Person(BaseModel):
+            names: str
+            location: str
+
+            class Config:
+                unsafe_hash = True
+
 
 
 
