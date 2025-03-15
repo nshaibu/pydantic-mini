@@ -373,3 +373,48 @@ class TestBase(unittest.TestCase):
         with patch.object(Person, "__model_init__", return_value=None) as mock_init:
             Person(name="nafiu", school="knust")
             mock_init.assert_called_once_with("knust")
+
+    def test_positioning_kwargs_before_positional_arguments_does_not_throw_errors(self):
+        class Person(BaseModel):
+            name: str = "nafiu"
+            school: str
+
+        class Person1(BaseModel):
+            name: str
+            school: str = "knust"
+
+        class Person2(BaseModel):
+            name = "nafiu"
+            school: int
+
+        person = Person(school="knust")
+        self.assertEqual(person.name, "nafiu")
+        self.assertEqual(person.school, "knust")
+
+        person1 = Person1(name="nafiu")
+        self.assertEqual(person1.name, "nafiu")
+        self.assertEqual(person1.school, "knust")
+
+        person2 = Person2(school=33)
+        self.assertEqual(person2.name, "nafiu")
+        self.assertEqual(person2.school, 33)
+
+        with self.assertRaises(TypeError):
+            Person2(name=45, school=32)
+
+    def test_miniannotated_validate_args(self):
+        with self.assertRaises(TypeError):
+            class Person(BaseModel):
+                name: MiniAnnotated[str, 12, "hello"]
+
+        with self.assertRaises(TypeError):
+            class Person(BaseModel):
+                name: MiniAnnotated[str, 12]
+
+        with self.assertRaises(ValueError):
+            class Person(BaseModel):
+                name: MiniAnnotated[typing.Optional, Attrib()]
+
+
+
+

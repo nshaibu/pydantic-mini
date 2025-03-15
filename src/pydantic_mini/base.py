@@ -28,6 +28,8 @@ class SchemaMeta(type):
         if not parents:
             return super().__new__(cls, name, bases, attrs)
 
+        # import pdb;pdb.set_trace()
+
         cls._prepare_model_fields(attrs)
 
         new_class = super().__new__(cls, name, bases, attrs, **kwargs)
@@ -35,6 +37,31 @@ class SchemaMeta(type):
         model_config: ModelConfig = getattr(new_class, "model_config", {})
 
         return dataclass(new_class, **model_config)
+
+    @classmethod
+    def get_non_annotated_fields(
+        cls, attrs, exclude: typing.Tuple = None
+    ):
+        if exclude is None:
+            exclude = []
+        for field_name, value in attrs.items():
+            if (
+                not field_name.startswith("__")
+                and field_name not in exclude
+                and not callable(value)
+            ):
+                if isinstance(value, Field):
+                    typ = cls._figure_out_field_type_by_default_value(
+                        field_name, value, attrs
+                    )
+                else:
+                    typ = cls._figure_out_field_type_by_default_value(
+                        field_name, value, attrs
+                    )
+                    value = field(default=value)
+
+                if typ is not None:
+                    yield field_name, typ, value
 
     @classmethod
     def get_fields(
@@ -56,17 +83,10 @@ class SchemaMeta(type):
             field_dict[field_name] = field_tuple
 
         # get fields without annotation
-        for field_name, value in attrs.items():
-            if field_name not in field_dict and isinstance(value, Field):
-                if value.type is not MISSING:
-                    typ = get_type(value.type)
-                elif value.default is not MISSING:
-                    typ = type(value.default)
-                elif value.default_factory is not MISSING:
-                    typ = type(value.default_factory())
-                else:
-                    continue
-                field_dict[field_name] = field_name, typ, value
+        for field_name, annotation, value in cls.get_non_annotated_fields(
+            attrs, exclude=tuple(field_dict.keys())
+        ):
+            field_dict[field_name] = field_name, annotation, value
 
         return list(field_dict.values())
 
