@@ -113,7 +113,7 @@ class Attrib:
 
     def __repr__(self):
         return (
-            "Query("
+            "Attrib("
             f"default={self.default!r},"
             f"default_factory={self.default_factory!r},"
             ")"

@@ -310,9 +310,9 @@ class BaseModel(PreventOverridingMixin, metaclass=SchemaMeta):
                                 actual_type, value
                             )
                         )
-            elif not isinstance(value, expected_annotated_type):
+            elif not isinstance(value, actual_expected_type):
                 raise TypeError(
-                    f"Field '{fd.name}' should be of type {expected_annotated_type[0]}, "
+                    f"Field '{fd.name}' should be of type {actual_expected_type}, "
                     f"but got {type(value).__name__}."
                 )
 
