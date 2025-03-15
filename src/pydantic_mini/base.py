@@ -28,8 +28,6 @@ class SchemaMeta(type):
         if not parents:
             return super().__new__(cls, name, bases, attrs)
 
-        # import pdb;pdb.set_trace()
-
         cls._prepare_model_fields(attrs)
 
         new_class = super().__new__(cls, name, bases, attrs, **kwargs)
