@@ -7,6 +7,8 @@ from .formatters import BaseModelFormatter
 from .typing import (
     is_mini_annotated,
     get_type,
+    get_origin,
+    get_args,
     MiniAnnotated,
     Attrib,
     is_collection,
@@ -37,9 +39,7 @@ class SchemaMeta(type):
         return dataclass(new_class, **model_config)
 
     @classmethod
-    def get_non_annotated_fields(
-        cls, attrs, exclude: typing.Tuple = None
-    ):
+    def get_non_annotated_fields(cls, attrs, exclude: typing.Tuple = None):
         if exclude is None:
             exclude = []
         for field_name, value in attrs.items():
@@ -290,28 +290,29 @@ class BaseModel(PreventOverridingMixin, metaclass=SchemaMeta):
 
         query.execute_field_validators(self, fd)
 
-        expected_type = (
+        expected_annotated_type = (
             hasattr(field_type, "__args__") and field_type.__args__[0] or None
         )
-        expected_type = (
-            expected_type and self.type_can_be_validated(expected_type) or None
+        actual_expected_type = (
+            expected_annotated_type
+            and self.type_can_be_validated(expected_annotated_type)
+            or None
         )
 
-        is_type_collection, _ = is_collection(expected_type)
-
-        if expected_type and expected_type is not typing.Any:
+        if expected_annotated_type and typing.Any not in actual_expected_type:
+            is_type_collection, _ = is_collection(expected_annotated_type)
             if is_type_collection:
-                actual_type = expected_type.__args__[0]
-                if actual_type:
-                    if any([not isinstance(value, actual_type) for val in value]):
+                actual_type = expected_annotated_type.__args__[0]
+                if actual_type and actual_type is not typing.Any:
+                    if any([not isinstance(val, actual_type) for val in value]):
                         raise TypeError(
                             "Expected a collection of values of type '{}'. Values: {} ".format(
                                 actual_type, value
                             )
                         )
-            elif not isinstance(value, expected_type):
+            elif not isinstance(value, expected_annotated_type):
                 raise TypeError(
-                    f"Field '{fd.name}' should be of type {expected_type}, "
+                    f"Field '{fd.name}' should be of type {expected_annotated_type[0]}, "
                     f"but got {type(value).__name__}."
                 )
 
@@ -319,9 +320,9 @@ class BaseModel(PreventOverridingMixin, metaclass=SchemaMeta):
 
     @staticmethod
     def type_can_be_validated(typ) -> typing.Optional[typing.Tuple]:
-        origin = typing.get_origin(typ)
+        origin = get_origin(typ)
         if origin is typing.Union:
-            type_args = typing.get_args(typ)
+            type_args = get_args(typ)
             if type_args:
                 return tuple([get_type(_type) for _type in type_args])
         else:

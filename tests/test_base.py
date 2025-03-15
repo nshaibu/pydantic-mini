@@ -415,6 +415,23 @@ class TestBase(unittest.TestCase):
             class Person(BaseModel):
                 name: MiniAnnotated[typing.Optional, Attrib()]
 
+    def test_type_validation_using_any_annotation(self):
+        class Person(BaseModel):
+            name: typing.Any
+            school: typing.Any
+
+        person = Person(name="nafiu", school="knust")
+        self.assertEqual(person.name, "nafiu")
+        self.assertEqual(person.school, "knust")
+
+    def test_can_validate_collection_fields(self):
+        class Person(BaseModel):
+            names: typing.List[str]
+
+        person = Person(names=["a", "b", "c"])
+        self.assertEqual(person.names, ["a", "b", "c"])
+
+
 
 
 

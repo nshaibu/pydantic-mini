@@ -34,6 +34,8 @@ __all__ = (
     "InitVar",
     "is_initvar_type",
     "is_class_var_type",
+    "get_origin",
+    "get_args",
 )
 
 
