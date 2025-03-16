@@ -7,7 +7,7 @@ import collections
 from dataclasses import MISSING, Field, InitVar
 
 if sys.version_info < (3, 9):
-    from typing_extensions import Annotated, get_origin, get_args, OrderedDict
+    from typing_extensions import Annotated, get_origin, get_args
 else:
     from typing import Annotated, get_origin, get_args
 

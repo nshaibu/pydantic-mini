@@ -480,7 +480,7 @@ class TestBase(unittest.TestCase):
         p = Person(name="nafiu", location="kumasi")
         self.assertEqual(p.name, "nafiu")
         self.assertEqual(p.location, "kumasi")
-        self.assertIsNotNone(hash(p))
+        self.assertIsInstance(hash(p), int)
 
         class Person1(BaseModel):
             name: str
@@ -489,6 +489,16 @@ class TestBase(unittest.TestCase):
         p = Person1(name="nafiu", location="kumasi")
         with self.assertRaises(TypeError):
             hash(p)
+
+        class Person2(BaseModel):
+            name: str
+            location: str
+
+            class Config:
+                unsafe_hash = True
+
+        p2 = Person2(name="nafiu", location="kumasi")
+        self.assertIsInstance(hash(p2), int)
 
 
 

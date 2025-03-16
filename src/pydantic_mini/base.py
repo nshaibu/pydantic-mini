@@ -12,8 +12,6 @@ from .typing import (
     MiniAnnotated,
     Attrib,
     is_collection,
-    # DEFAULT_MODEL_CONFIG,
-    # ModelConfig,
     is_optional_type,
     is_builtin_type,
     is_initvar_type,
