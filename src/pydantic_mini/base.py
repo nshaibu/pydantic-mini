@@ -128,11 +128,12 @@ class SchemaMeta(type):
                         f"Figuring out field type from default value failed"
                     )
 
-            if is_initvar_type(annotation) or is_class_var_type(annotation):
+            if is_initvar_type(annotation) or is_class_var_type(annotation) or annotation is typing.Any:
                 # let's ignore init-var and class-var, dataclass will take care of them
-                value = attrs.get(field_name, None)
                 ann_with_defaults[field_name] = annotation
-                attrs[field_name] = value.default if isinstance(value, Field) else value
+                if field_name in attrs:
+                    value = attrs[field_name]
+                    attrs[field_name] = value.default if isinstance(value, Field) else value
                 continue
 
             if not is_mini_annotated(annotation):
@@ -203,8 +204,10 @@ class BaseModel(PreventOverridingMixin, metaclass=SchemaMeta):
 
     def __post_init__(self, *args, **kwargs) -> None:
         for fd in fields(self):
-            self._inner_schema_value_preprocessor(fd)
-            self._field_type_validator(fd)
+            # no type validation for Any field type
+            if fd.type is not typing.Any:
+                self._inner_schema_value_preprocessor(fd)
+                self._field_type_validator(fd)
 
             try:
                 result = self.validate(getattr(self, fd.name), fd)

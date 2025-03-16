@@ -366,9 +366,12 @@ class TestBase(unittest.TestCase):
             name: str
             school: InitVar[str]
 
-        person = Person(name="nafiu")
+            def __model_init__(self, school):
+                self.school = school
+
+        person = Person(name="nafiu", school="knust")
         self.assertEqual(person.name, "nafiu")
-        self.assertEqual(person.school, None)
+        self.assertEqual(person.school, "knust")
 
         with patch.object(Person, "__model_init__", return_value=None) as mock_init:
             Person(name="nafiu", school="knust")

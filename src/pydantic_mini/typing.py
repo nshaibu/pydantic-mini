@@ -19,7 +19,6 @@ if typing.TYPE_CHECKING:
     from .base import BaseModel
 
 __all__ = (
-    "Annotated",
     "MiniAnnotated",
     "Attrib",
     "get_type",
