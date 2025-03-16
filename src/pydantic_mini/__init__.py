@@ -22,7 +22,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 __version__ = "1.0.3.post1"
 
 from .base import BaseModel
-from .typing import ModelConfig, Attrib, MiniAnnotated
+from .typing import Attrib, MiniAnnotated
 
 
-__all__ = ["BaseModel", "ModelConfig", "Attrib", "MiniAnnotated"]
+__all__ = ["BaseModel", "Attrib", "MiniAnnotated"]

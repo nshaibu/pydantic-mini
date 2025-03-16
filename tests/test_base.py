@@ -294,6 +294,26 @@ class TestBase(unittest.TestCase):
         self.assertEqual(person.name, "NAFIU")
         self.assertEqual(person.school_name, "KNUST")
 
+    def test_attribute_validation(self):
+        class Person(BaseModel):
+            name: MiniAnnotated[str, Attrib(max_length=10, min_length=2)]
+            age: MiniAnnotated[int, Attrib(le=14)]
+            number_of_dependents: MiniAnnotated[int, Attrib(default=3, lt=4)]
+
+        with self.assertRaises(ValidationError):
+            Person(name="n", age=14)
+
+        with self.assertRaises(ValidationError):
+            Person(name="very very loong name", age=14)
+
+        with self.assertRaises(ValidationError):
+            p0 = Person(name="nshaibu", age=17)
+            self.assertEqual(p0.number_of_dependents, 3)
+
+        with self.assertRaises(ValidationError):
+            p1 = Person(name="nafiu", age=15, number_of_dependents=2)
+            self.assertEqual(p.number_of_dependents, 2)
+
     def test_all_field_validator_method_can_transform_field_value(self):
         class Person(BaseModel):
             name: str
@@ -434,13 +454,42 @@ class TestBase(unittest.TestCase):
         person = Person(names=["a", "b", "c"])
         self.assertEqual(person.names, ["a", "b", "c"])
 
-    def test_configuration_for_model(self):
+    def test_overridden_init_and_post_init_raises_permissionerror(self):
+        with self.assertRaises(PermissionError):
+            class Person(BaseModel):
+                names: typing.List[str]
+
+                def __init__(self, names):
+                    self.names = names
+
+        with self.assertRaises(PermissionError):
+            class Person1(BaseModel):
+                names: typing.List[str]
+
+                def __post_init__(self):
+                    pass
+
+    def test_model_can_be_configured(self):
         class Person(BaseModel):
-            names: str
+            name: str
             location: str
 
             class Config:
-                unsafe_hash = True
+                frozen = True
+
+        p = Person(name="nafiu", location="kumasi")
+        self.assertEqual(p.name, "nafiu")
+        self.assertEqual(p.location, "kumasi")
+        self.assertIsNotNone(hash(p))
+
+        class Person1(BaseModel):
+            name: str
+            location: str
+
+        p = Person1(name="nafiu", location="kumasi")
+        with self.assertRaises(TypeError):
+            hash(p)
+
 
 
 

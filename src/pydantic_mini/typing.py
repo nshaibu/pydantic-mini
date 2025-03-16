@@ -1,6 +1,4 @@
 from __future__ import annotations
-
-import inspect
 import re
 import sys
 import types
@@ -9,7 +7,7 @@ import collections
 from dataclasses import MISSING, Field, InitVar
 
 if sys.version_info < (3, 9):
-    from typing_extensions import Annotated, get_origin, get_args
+    from typing_extensions import Annotated, get_origin, get_args, OrderedDict
 else:
     from typing import Annotated, get_origin, get_args
 
@@ -27,8 +25,7 @@ __all__ = (
     "is_type",
     "is_mini_annotated",
     "NoneType",
-    "ModelConfig",
-    "DEFAULT_MODEL_CONFIG",
+    "ModelConfigWrapper",
     "is_builtin_type",
     "InitVar",
     "is_initvar_type",
@@ -42,23 +39,37 @@ __all__ = (
 NoneType = getattr(types, "NoneType", type(None))
 
 
-class ModelConfig(typing.TypedDict, total=False):
-    init: bool
-    repr: bool
-    eq: bool
-    order: bool
-    unsafe_hash: bool
-    frozen: bool
+_DATACLASS_CONFIG_FIELD: typing.List[str] = [
+    "init",
+    "repr",
+    "eq",
+    "order",
+    "unsafe_hash",
+    "frozen",
+]
 
 
-DEFAULT_MODEL_CONFIG = ModelConfig(
-    init=True,
-    repr=True,
-    eq=True,
-    order=False,
-    unsafe_hash=False,
-    frozen=False,
-)
+class ModelConfigWrapper:
+    init: bool = True
+    repr: bool = True
+    eq: bool = True
+    order: bool = False
+    unsafe_hash: bool = False
+    frozen: bool = False
+
+    def __init__(self, config: typing.Type):
+        self.config = config
+
+    def get_config(self, name: str) -> typing.Any:
+        if self.config and hasattr(self.config, name):
+            return getattr(self.config, name, None)
+        return getattr(self.__class__, name, None)
+
+    def get_dataclass_config(self) -> typing.Dict[str, typing.Any]:
+        dt = collections.OrderedDict()
+        for config_field in _DATACLASS_CONFIG_FIELD:
+            dt[config_field] = self.get_config(config_field)
+        return dt
 
 
 class Attrib:

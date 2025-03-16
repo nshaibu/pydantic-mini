@@ -12,12 +12,13 @@ from .typing import (
     MiniAnnotated,
     Attrib,
     is_collection,
-    DEFAULT_MODEL_CONFIG,
-    ModelConfig,
+    # DEFAULT_MODEL_CONFIG,
+    # ModelConfig,
     is_optional_type,
     is_builtin_type,
     is_initvar_type,
     is_class_var_type,
+    ModelConfigWrapper,
 )
 from .utils import init_class
 from .exceptions import ValidationError
@@ -34,9 +35,11 @@ class SchemaMeta(type):
 
         new_class = super().__new__(cls, name, bases, attrs, **kwargs)
 
-        model_config: ModelConfig = getattr(new_class, "model_config", {})
+        model_config_class: typing.Type = getattr(new_class, "Config", None)
 
-        return dataclass(new_class, **model_config)
+        config = ModelConfigWrapper(model_config_class)
+
+        return dataclass(new_class, **config.get_dataclass_config())
 
     @classmethod
     def get_non_annotated_fields(cls, attrs, exclude: typing.Tuple = None):
@@ -128,12 +131,19 @@ class SchemaMeta(type):
                         f"Figuring out field type from default value failed"
                     )
 
-            if is_initvar_type(annotation) or is_class_var_type(annotation) or annotation is typing.Any:
+            if (
+                is_initvar_type(annotation)
+                or is_class_var_type(annotation)
+                or annotation is typing.Any
+            ):
                 # let's ignore init-var and class-var, dataclass will take care of them
+                # typing.Any does not require any type Validation
                 ann_with_defaults[field_name] = annotation
                 if field_name in attrs:
                     value = attrs[field_name]
-                    attrs[field_name] = value.default if isinstance(value, Field) else value
+                    attrs[field_name] = (
+                        value.default if isinstance(value, Field) else value
+                    )
                 continue
 
             if not is_mini_annotated(annotation):
@@ -186,18 +196,17 @@ class PreventOverridingMixin:
     _protect = ["__init__", "__post_init__"]
 
     def __init_subclass__(cls, **kwargs):
-        for attr_name in cls._protect:
-            if attr_name in cls.__dict__ and cls.__name__ != "BaseModel":
-                raise TypeError(
-                    f"Model '{cls.__name__}' cannot override {attr_name!r}. "
-                    f"Consider using __model_init__ for all your custom initialization"
-                )
+        if cls.__name__ != "BaseModel":
+            for attr_name in cls._protect:
+                if attr_name in cls.__dict__:
+                    raise PermissionError(
+                        f"Model '{cls.__name__}' cannot override {attr_name!r}. "
+                        f"Consider using __model_init__ for all your custom initialization"
+                    )
         super().__init_subclass__(**kwargs)
 
 
 class BaseModel(PreventOverridingMixin, metaclass=SchemaMeta):
-
-    model_config = DEFAULT_MODEL_CONFIG
 
     def __model_init__(self, *args, **kwargs) -> None:
         pass
@@ -335,7 +344,7 @@ class BaseModel(PreventOverridingMixin, metaclass=SchemaMeta):
     def get_formatter_by_name(name: str) -> BaseModelFormatter:
         return BaseModelFormatter.get_formatter(format_name=name)
 
-    def validate(self, value: typing.Any, fd: Field):
+    def validate(self, value: typing.Any, data_field: Field):
         """Implement this method to validate all fields"""
         raise NotImplementedError
 
