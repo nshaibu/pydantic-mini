@@ -187,6 +187,24 @@ print(adults)
 
 ---
 
+## Example
+```python
+class EventResult(BaseModel):
+    error: bool
+    task_id: str
+    event_name: str
+    content: typing.Any
+    init_params: typing.Optional[typing.Dict[str, typing.Any]]
+    call_params: typing.Optional[typing.Dict[str, typing.Any]]
+    process_id: MiniAnnotated[int, Attrib(default_factory=lambda: os.getpid())]
+    creation_time: MiniAnnotated[float, Attrib(default_factory=lambda: datetime.now().timestamp())]
+
+    class Config:
+        unsafe_hash = False
+        frozen = False
+        eq = True
+```
+
 ## Contributing
 
 Contributions are welcome! If you'd like to help improve the library, please fork the repository and submit a pull request.
