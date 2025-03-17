@@ -17,6 +17,11 @@ if typing.TYPE_CHECKING:
 
 _BLOCK_SIZE = 1024
 
+T = typing.TypeVar("T", typing.List["BaseModel"], "BaseModel")
+D = typing.TypeVar(
+    "D", typing.Dict[str, typing.Any], typing.List[typing.Dict[str, typing.Any]]
+)
+
 
 class BaseModelFormatter(ABC):
     format_name: str = None
@@ -31,9 +36,7 @@ class BaseModelFormatter(ABC):
         return format_name in format_names
 
     @abstractmethod
-    def encode(
-        self, _type: typing.Type["BaseModel"], obj: typing.Dict[str, typing.Any]
-    ) -> "BaseModel":
+    def encode(self, _type: typing.Type["BaseModel"], obj: D) -> T:
         pass
 
     @abstractmethod
@@ -65,45 +68,27 @@ class DictModelFormatter(BaseModelFormatter):
         instance.__post_init__()
         return instance
 
-    def encode(
-        self,
-        _type: typing.Type["BaseModel"],
-        obj: typing.Union[
-            typing.Dict[str, typing.Any], typing.List[typing.Dict[str, typing.Any]]
-        ],
-    ) -> typing.Union["BaseModel", typing.List["BaseModel"]]:
+    def encode(self, _type: typing.Type["BaseModel"], obj: D) -> T:
         if isinstance(obj, dict):
             return self._encode(_type, obj)
         elif isinstance(obj, list):
-            content = []
-            for item in obj:
-                content.append(self._encode(_type, item))
-            return content
+            return [self._encode(_type, item) for item in obj]
         else:
             raise TypeError("Object must be dict or list")
 
-    def decode(self, instance: "BaseModel") -> typing.Dict[str, typing.Any]:
+    def decode(self, instance: T) -> D:
+        if isinstance(instance, list):
+            return [asdict(val) for val in instance]
         return asdict(instance)
 
 
 class JSONModelFormatter(DictModelFormatter):
     format_name = "json"
 
-    def encode(
-        self, _type: typing.Type["BaseModel"], obj: str
-    ) -> typing.Union["BaseModel", typing.List["BaseModel"]]:
-        obj = json.loads(obj)
-        if isinstance(obj, dict):
-            return super().encode(_type, obj)
-        elif isinstance(obj, list):
-            content = []
-            for value in obj:
-                content.append(super().encode(_type, value))
-            return content
-        else:
-            raise TypeError(f"Type {obj} is not JSON serializable")
+    def encode(self, _type: typing.Type["BaseModel"], obj: str) -> T:
+        return super().encode(_type, json.loads(obj))
 
-    def decode(self, instance: "BaseModel") -> str:
+    def decode(self, instance: T) -> str:
         return json.dumps(super().decode(instance))
 
 
@@ -112,7 +97,7 @@ class CSVModelFormatter(DictModelFormatter):
 
     def encode(
         self, _type: typing.Type["BaseModel"], file: str
-    ) -> typing.List["BaseModel"]:
+    ) -> T:
         with open(file, "r", newline="") as f:
             sample = f.read(_BLOCK_SIZE)
             dialect = csv.Sniffer().sniff(sample)
@@ -124,7 +109,7 @@ class CSVModelFormatter(DictModelFormatter):
             return [super().encode(_type, row) for row in reader]
 
     def decode(
-        self, instance: typing.Union["BaseModel", typing.List["BaseModel"]]
+        self, instance: T
     ) -> str:
         instances = instance if isinstance(instance, (list, tuple)) else [instance]
         with StringIO() as f:
