@@ -3,14 +3,32 @@ import json
 import typing
 from dataclasses import asdict
 from abc import ABC, abstractmethod
+
+try:
+    from StringIO import StringIO
+except ImportError:
+    from io import StringIO
+
 from .utils import init_class
 
 if typing.TYPE_CHECKING:
     from .base import BaseModel
 
 
+_BLOCK_SIZE = 1024
+
+
 class BaseModelFormatter(ABC):
     format_name: str = None
+
+    @classmethod
+    def is_format_name(cls, format_name: str) -> bool:
+        format_names = (
+            isinstance(cls.format_name, (list, tuple))
+            and format_name
+            or [cls.format_name]
+        )
+        return format_name in format_names
 
     @abstractmethod
     def encode(
@@ -29,10 +47,10 @@ class BaseModelFormatter(ABC):
             yield subclass
 
     @classmethod
-    def get_formatter(cls, *args, format_name: str, **kwargs) -> "BaseModelFormatter":
+    def get_formatter(cls, format_name: str, **config) -> "BaseModelFormatter":
         for subclass in cls.get_formatters():
-            if subclass.format_name == format_name:
-                return subclass(*args, **kwargs)
+            if subclass.is_format_name(format_name):
+                return subclass(**config)
         raise KeyError(f"Format {format_name} not found")
 
 
@@ -92,8 +110,32 @@ class JSONModelFormatter(DictModelFormatter):
 class CSVModelFormatter(DictModelFormatter):
     format_name = "csv"
 
-    def encode(self, _type: typing.Type["BaseModel"], file: str):
-        pass
+    def encode(
+        self, _type: typing.Type["BaseModel"], file: str
+    ) -> typing.List["BaseModel"]:
+        with open(file, "r", newline="") as f:
+            sample = f.read(_BLOCK_SIZE)
+            dialect = csv.Sniffer().sniff(sample)
+            has_header = csv.Sniffer().has_header(sample)
+            f.seek(0)
+            if not has_header:
+                raise FileExistsError(f"File {file} does not have header")
+            reader = csv.DictReader(f, dialect=dialect)
+            return [super().encode(_type, row) for row in reader]
 
-    def decode(self, instance: "BaseModel") -> str:
-        pass
+    def decode(
+        self, instance: typing.Union["BaseModel", typing.List["BaseModel"]]
+    ) -> str:
+        instances = instance if isinstance(instance, (list, tuple)) else [instance]
+        with StringIO() as f:
+            writer = csv.DictWriter(f, dialect=csv.excel, fieldnames=[])
+            for index, obj in enumerate(instances):
+                instance_dict = super().decode(obj)
+                if index == 0:
+                    writer.fieldnames = list(instance_dict.keys())
+                    writer.writeheader()
+                writer.writerow(instance_dict)
+
+            context = f.getvalue()
+
+        return context
