@@ -120,6 +120,35 @@ class Attrib:
             typing.List[typing.Callable[[typing.Any], typing.Any]]
         ] = MISSING,
     ):
+        """
+        Represents a data attribute with optional validation, default values, and formatting logic.
+
+        Attributes (via __slots__):
+            default (Any): A default value for the attribute, if provided.
+            default_factory (Callable): A callable that generates a default value.
+            pre_formatter (Callable): A function to preprocess/format the value before validation.
+            required (bool): Whether the attribute is required.
+            allow_none (bool): Whether None is an acceptable value.
+            gt (float): Value must be greater than this (exclusive).
+            ge (float): Value must be greater than or equal to this (inclusive).
+            lt (float): Value must be less than this (exclusive).
+            le (float): Value must be less than or equal to this (inclusive).
+            min_length (int): Minimum allowed length (for iterable types like strings/lists).
+            max_length (int): Maximum allowed length.
+            pattern (str or Pattern): Regex pattern the value must match (typically for strings).
+            _validators (List[Callable]): Custom validators to run on the value.
+
+        Args:
+            default (Any, optional): Static default value to use if none is provided.
+            default_factory (Callable, optional): Function that returns a default value.
+            pre_formatter (Callable, optional): Function to format/preprocess the value before validation.
+            required (bool): Whether this field is required (default: False).
+            allow_none (bool): Whether None is allowed as a value (default: False).
+            gt, ge, lt, le (float, optional): Numeric comparison constraints.
+            min_length, max_length (int, optional): Length constraints for sequences.
+            pattern (str or Pattern, optional): Regex pattern constraint.
+            validators (List[Callable], optional): Additional callables that validate the input.
+        """
         self.default = default
         self.default_factory = default_factory
         self.pre_formatter = pre_formatter
