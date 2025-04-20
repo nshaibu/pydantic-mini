@@ -89,6 +89,7 @@ class Attrib:
     __slots__ = (
         "default",
         "default_factory",
+        "pre_formatter",
         "required",
         "allow_none",
         "gt",
@@ -105,6 +106,7 @@ class Attrib:
         self,
         default: typing.Optional[typing.Any] = MISSING,
         default_factory: typing.Optional[typing.Callable[[], typing.Any]] = MISSING,
+        pre_formatter: typing.Callable[[typing.Any], typing.Any] = MISSING,
         required: bool = False,
         allow_none: bool = False,
         gt: typing.Optional[float] = None,
@@ -120,6 +122,7 @@ class Attrib:
     ):
         self.default = default
         self.default_factory = default_factory
+        self.pre_formatter = pre_formatter
         self.required = required
         self.allow_none = allow_none
         self.gt = gt
