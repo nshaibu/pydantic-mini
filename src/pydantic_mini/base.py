@@ -22,6 +22,11 @@ from .utils import init_class
 from .exceptions import ValidationError
 
 
+__all__ = ("BaseModel",)
+
+PYDANTIC_MINI_EXTRA_MODEL_CONFIG = "__pydantic_mini_extra_config__"
+
+
 class SchemaMeta(type):
 
     def __new__(cls, name, bases, attrs, **kwargs):
@@ -36,6 +41,12 @@ class SchemaMeta(type):
         model_config_class: typing.Type = getattr(new_class, "Config", None)
 
         config = ModelConfigWrapper(model_config_class)
+
+        setattr(
+            new_class,
+            PYDANTIC_MINI_EXTRA_MODEL_CONFIG,
+            config.get_non_dataclass_config(),
+        )
 
         return dataclass(new_class, **config.get_dataclass_config())
 

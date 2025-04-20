@@ -48,6 +48,11 @@ _DATACLASS_CONFIG_FIELD: typing.List[str] = [
     "frozen",
 ]
 
+_NON_DATACLASS_CONFIG_FIELD: typing.List[str] = [
+    "disable_typecheck",
+    "disable_all_validation",
+]
+
 
 class ModelConfigWrapper:
     init: bool = True
@@ -56,6 +61,8 @@ class ModelConfigWrapper:
     order: bool = False
     unsafe_hash: bool = False
     frozen: bool = False
+    disable_typecheck: bool = False
+    disable_all_validation: bool = False
 
     def __init__(self, config: typing.Type):
         self.config = config
@@ -71,12 +78,19 @@ class ModelConfigWrapper:
             dt[config_field] = self.get_config(config_field)
         return dt
 
+    def get_non_dataclass_config(self) -> typing.Dict[str, typing.Any]:
+        dt = collections.OrderedDict()
+        for config_field in _NON_DATACLASS_CONFIG_FIELD:
+            dt[config_field] = self.get_config(config_field)
+        return dt
+
 
 class Attrib:
     __slots__ = (
         "default",
         "default_factory",
         "required",
+        "allow_none",
         "gt",
         "ge",
         "lt",
@@ -92,6 +106,7 @@ class Attrib:
         default: typing.Optional[typing.Any] = MISSING,
         default_factory: typing.Optional[typing.Callable[[], typing.Any]] = MISSING,
         required: bool = False,
+        allow_none: bool = False,
         gt: typing.Optional[float] = None,
         ge: typing.Optional[float] = None,
         lt: typing.Optional[float] = None,
@@ -106,6 +121,7 @@ class Attrib:
         self.default = default
         self.default_factory = default_factory
         self.required = required
+        self.allow_none = allow_none
         self.gt = gt
         self.ge = ge
         self.lt = lt

@@ -312,7 +312,7 @@ class TestBase(unittest.TestCase):
 
         with self.assertRaises(ValidationError):
             p1 = Person(name="nafiu", age=15, number_of_dependents=2)
-            self.assertEqual(p.number_of_dependents, 2)
+            self.assertEqual(p1.number_of_dependents, 2)
 
     def test_all_field_validator_method_can_transform_field_value(self):
         class Person(BaseModel):
@@ -427,14 +427,17 @@ class TestBase(unittest.TestCase):
 
     def test_miniannotated_validate_args(self):
         with self.assertRaises(TypeError):
+
             class Person(BaseModel):
                 name: MiniAnnotated[str, 12, "hello"]
 
         with self.assertRaises(TypeError):
+
             class Person(BaseModel):
                 name: MiniAnnotated[str, 12]
 
         with self.assertRaises(ValueError):
+
             class Person(BaseModel):
                 name: MiniAnnotated[typing.Optional, Attrib()]
 
@@ -456,6 +459,7 @@ class TestBase(unittest.TestCase):
 
     def test_overridden_init_and_post_init_raises_permissionerror(self):
         with self.assertRaises(PermissionError):
+
             class Person(BaseModel):
                 names: typing.List[str]
 
@@ -463,6 +467,7 @@ class TestBase(unittest.TestCase):
                     self.names = names
 
         with self.assertRaises(PermissionError):
+
             class Person1(BaseModel):
                 names: typing.List[str]
 
@@ -499,9 +504,3 @@ class TestBase(unittest.TestCase):
 
         p2 = Person2(name="nafiu", location="kumasi")
         self.assertIsInstance(hash(p2), int)
-
-
-
-
-
-

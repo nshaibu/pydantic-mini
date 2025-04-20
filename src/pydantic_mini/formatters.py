@@ -95,9 +95,7 @@ class JSONModelFormatter(DictModelFormatter):
 class CSVModelFormatter(DictModelFormatter):
     format_name = "csv"
 
-    def encode(
-        self, _type: typing.Type["BaseModel"], file: str
-    ) -> T:
+    def encode(self, _type: typing.Type["BaseModel"], file: str) -> T:
         with open(file, "r", newline="") as f:
             sample = f.read(_BLOCK_SIZE)
             dialect = csv.Sniffer().sniff(sample)
@@ -108,9 +106,7 @@ class CSVModelFormatter(DictModelFormatter):
             reader = csv.DictReader(f, dialect=dialect)
             return [super().encode(_type, row) for row in reader]
 
-    def decode(
-        self, instance: T
-    ) -> str:
+    def decode(self, instance: T) -> str:
         instances = instance if isinstance(instance, (list, tuple)) else [instance]
         with StringIO() as f:
             writer = csv.DictWriter(f, dialect=csv.excel, fieldnames=[])
