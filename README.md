@@ -73,7 +73,7 @@ from pydantic_mini.exceptions import ValidationError
 def kofi_not_accepted(instance, value: str):
   if value == "kofi":
     # validators must raise ValidationError when validation fails.
-    raise ValidationError("Age must be a positive number.")
+    raise ValidationError("Kofi is not a valid name")
 
   # If you want to apply a transformation and save the result into the model, 
   # return the transformed result you want to save. For instance, if you want the names to be capitalized, 
