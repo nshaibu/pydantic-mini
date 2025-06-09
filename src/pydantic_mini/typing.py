@@ -180,6 +180,9 @@ class Attrib:
     def has_default(self):
         return self.default is not MISSING or self.default_factory is not MISSING
 
+    def has_pre_formatter(self):
+        return self.pre_formatter is not None and callable(self.pre_formatter)
+
     def _get_default(self) -> typing.Any:
         if self.default is not MISSING:
             return self.default
@@ -188,6 +191,9 @@ class Attrib:
 
     def validate(self, value: typing.Any, field_name: str) -> typing.Optional[bool]:
         value = value or self._get_default()
+
+        if self.allow_none and value is None:
+            return True
 
         if self.required and value is None:
             raise ValidationError(
@@ -200,7 +206,7 @@ class Attrib:
 
             # Skip the validation if 'validation_factor' is None, or if both 'value'
             # and 'self.default' are None
-            if validation_factor is None or (value is None and self.default is None):
+            if validation_factor is None or value is None:
                 continue
 
             validator = getattr(self, f"_validate_{name}")
@@ -213,6 +219,8 @@ class Attrib:
                 result = validator(instance, getattr(instance, fd.name))
                 if result is not None:
                     setattr(instance, fd.name, result)
+                elif self.allow_none:
+                    setattr(instance, fd.name, None)
             except Exception as e:
                 if isinstance(e, ValidationError):
                     raise

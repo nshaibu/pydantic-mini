@@ -221,24 +221,29 @@ class BaseModel(PreventOverridingMixin, metaclass=SchemaMeta):
         pass
 
     def __post_init__(self, *args, **kwargs) -> None:
-        for fd in fields(self):
-            # no type validation for Any field type
-            if fd.type is not typing.Any:
-                self._inner_schema_value_preprocessor(fd)
-                self._field_type_validator(fd)
+        config = getattr(self, PYDANTIC_MINI_EXTRA_MODEL_CONFIG, {})
+        disable_typecheck = config.get("disable_typecheck", False)
+        disable_all_validation = config.get("disable_all_validation", False)
 
-            try:
-                result = self.validate(getattr(self, fd.name), fd)
-                if result is not None:
-                    setattr(self, fd.name, result)
-            except NotImplementedError:
-                pass
+        if not disable_all_validation:
+            for fd in fields(self):
+                # no type validation for Any field type and type checking is not disabled
+                if fd.type is not typing.Any and not disable_typecheck:
+                    self._inner_schema_value_preprocessor(fd)
+                    self._field_type_validator(fd)
 
-            method = getattr(self, f"validate_{fd.name}", None)
-            if method and callable(method):
-                result = method(getattr(self, fd.name), fd)
-                if result is not None:
-                    setattr(self, fd.name, result)
+                try:
+                    result = self.validate(getattr(self, fd.name), fd)
+                    if result is not None:
+                        setattr(self, fd.name, result)
+                except NotImplementedError:
+                    pass
+
+                method = getattr(self, f"validate_{fd.name}", None)
+                if method and callable(method):
+                    result = method(getattr(self, fd.name), fd)
+                    if result is not None:
+                        setattr(self, fd.name, result)
 
         self.__model_init__(*args, **kwargs)
 

@@ -28,10 +28,30 @@ class TestBase(unittest.TestCase):
             value: typing.Optional[int]
             name: MiniAnnotated[typing.Optional[str], Attrib(max_length=20)]
 
+        class DisabledAllValidationClass(BaseModel):
+            email: MiniAnnotated[
+                str, Attrib(pattern=r"^[^@]+@[^@]+\.[^@]+$", max_length=13)  # noqa:
+            ]
+            value: MiniAnnotated[int, Attrib(gt=4, lt=20, default=5)]
+
+            class Config:
+                disable_all_validation = True
+
+        class DisabledTypeCheckValidationClass(BaseModel):
+            email: MiniAnnotated[
+                str, Attrib(pattern=r"^[^@]+@[^@]+\.[^@]+$", max_length=13)  # noqa:
+            ]
+            value: MiniAnnotated[int, Attrib(gt=4, lt=20, default=5)]
+
+            class Config:
+                disable_typecheck = True
+
         cls.MyModel = MyModel
         cls.DataClassField = DataClassField
         cls.AnnotatedDataClass = AnnotatedDataClass
         cls.UsingOptionalDataClass = UsingOptionalDataClass
+        cls.DisabledAllValidationClass = DisabledAllValidationClass
+        cls.DisabledTypeCheckValidationClass = DisabledTypeCheckValidationClass
 
     def test_simple_annotated_model(self):
         instance = self.MyModel(name="test", age=10)
@@ -504,3 +524,12 @@ class TestBase(unittest.TestCase):
 
         p2 = Person2(name="nafiu", location="kumasi")
         self.assertIsInstance(hash(p2), int)
+
+    def test_disabling_all_validations(self):
+        example = self.DisabledAllValidationClass(email="nafiu", value="me")
+        self.assertEqual(example.email, "nafiu")
+        self.assertEqual(example.value, "me")
+
+    def test_disabling_type_checking(self):
+        with self.assertRaises(ValidationError):
+            self.DisabledTypeCheckValidationClass(email="nafiu", value="me")
