@@ -22,6 +22,11 @@ from .utils import init_class
 from .exceptions import ValidationError
 
 
+__all__ = ("BaseModel",)
+
+PYDANTIC_MINI_EXTRA_MODEL_CONFIG = "__pydantic_mini_extra_config__"
+
+
 class SchemaMeta(type):
 
     def __new__(cls, name, bases, attrs, **kwargs):
@@ -36,6 +41,12 @@ class SchemaMeta(type):
         model_config_class: typing.Type = getattr(new_class, "Config", None)
 
         config = ModelConfigWrapper(model_config_class)
+
+        setattr(
+            new_class,
+            PYDANTIC_MINI_EXTRA_MODEL_CONFIG,
+            config.get_non_dataclass_config(),
+        )
 
         return dataclass(new_class, **config.get_dataclass_config())
 
@@ -210,24 +221,44 @@ class BaseModel(PreventOverridingMixin, metaclass=SchemaMeta):
         pass
 
     def __post_init__(self, *args, **kwargs) -> None:
+        config = getattr(self, PYDANTIC_MINI_EXTRA_MODEL_CONFIG, {})
+        disable_typecheck = config.get("disable_typecheck", False)
+        disable_all_validation = config.get("disable_all_validation", False)
+
         for fd in fields(self):
-            # no type validation for Any field type
-            if fd.type is not typing.Any:
-                self._inner_schema_value_preprocessor(fd)
-                self._field_type_validator(fd)
+            field_type = fd.type
+            query: Attrib = (
+                hasattr(field_type, "__metadata__")
+                and field_type.__metadata__[0]
+                or None
+            )
+            if query:
+                # execute the pre-formatters for all the fields
+                query.execute_pre_formatter(self, fd)
 
-            try:
-                result = self.validate(getattr(self, fd.name), fd)
-                if result is not None:
-                    setattr(self, fd.name, result)
-            except NotImplementedError:
-                pass
+            if not disable_all_validation:
+                # no type validation for Any field type and type checking is not disabled
+                if field_type is not typing.Any and not disable_typecheck:
+                    self._inner_schema_value_preprocessor(fd)
+                    self._field_type_validator(fd)
+                else:
+                    # run other field validators when type checking is disabled
+                    if query:
+                        value = getattr(self, fd.name, None)
+                        query.execute_field_validators(self, fd)
+                        query.validate(value, fd.name)
+                try:
+                    result = self.validate(getattr(self, fd.name), fd)
+                    if result is not None:
+                        setattr(self, fd.name, result)
+                except NotImplementedError:
+                    pass
 
-            method = getattr(self, f"validate_{fd.name}", None)
-            if method and callable(method):
-                result = method(getattr(self, fd.name), fd)
-                if result is not None:
-                    setattr(self, fd.name, result)
+                method = getattr(self, f"validate_{fd.name}", None)
+                if method and callable(method):
+                    result = method(getattr(self, fd.name), fd)
+                    if result is not None:
+                        setattr(self, fd.name, result)
 
         self.__model_init__(*args, **kwargs)
 

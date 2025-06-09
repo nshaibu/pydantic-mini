@@ -187,6 +187,19 @@ print(adults)
 
 ---
 
+## Model Configuration
+| Field                    | Type | Default | Description                                                   |
+| ------------------------ | ---- | ------- |---------------------------------------------------------------|
+| `init`                   | bool | `True`  | Whether the `__init__` method is generated for the dataclass. |
+| `repr`                   | bool | `True`  | Whether a `__repr__` method is generated.                     |
+| `eq`                     | bool | `True`  | Enables the generation of `__eq__` for comparisons.           |
+| `order`                  | bool | `False` | Enables ordering methods (`__lt__`, `__gt__`, etc.).          |
+| `unsafe_hash`            | bool | `False` | Allows an unsafe implementation of `__hash__`.                |
+| `frozen`                 | bool | `False` | Makes the dataclass instances immutable.                      |
+| `disable_typecheck`      | bool | `False` | Disable runtime type checking in models.                      |
+| `disable_all_validation` | bool | `False` | Disable **all** validation logic (type + custom rules).       |
+
+
 ## Example
 ```python
 class EventResult(BaseModel):

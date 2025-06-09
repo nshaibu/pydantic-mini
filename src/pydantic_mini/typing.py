@@ -1,5 +1,6 @@
 from __future__ import annotations
 import re
+import logging
 import sys
 import types
 import typing
@@ -34,6 +35,8 @@ __all__ = (
     "get_args",
 )
 
+logger = logging.getLogger(__name__)
+
 
 # backward compatibility
 NoneType = getattr(types, "NoneType", type(None))
@@ -48,6 +51,11 @@ _DATACLASS_CONFIG_FIELD: typing.List[str] = [
     "frozen",
 ]
 
+_NON_DATACLASS_CONFIG_FIELD: typing.List[str] = [
+    "disable_typecheck",
+    "disable_all_validation",
+]
+
 
 class ModelConfigWrapper:
     init: bool = True
@@ -56,6 +64,8 @@ class ModelConfigWrapper:
     order: bool = False
     unsafe_hash: bool = False
     frozen: bool = False
+    disable_typecheck: bool = False
+    disable_all_validation: bool = False
 
     def __init__(self, config: typing.Type):
         self.config = config
@@ -71,12 +81,20 @@ class ModelConfigWrapper:
             dt[config_field] = self.get_config(config_field)
         return dt
 
+    def get_non_dataclass_config(self) -> typing.Dict[str, typing.Any]:
+        dt = collections.OrderedDict()
+        for config_field in _NON_DATACLASS_CONFIG_FIELD:
+            dt[config_field] = self.get_config(config_field)
+        return dt
+
 
 class Attrib:
     __slots__ = (
         "default",
         "default_factory",
+        "pre_formatter",
         "required",
+        "allow_none",
         "gt",
         "ge",
         "lt",
@@ -91,7 +109,9 @@ class Attrib:
         self,
         default: typing.Optional[typing.Any] = MISSING,
         default_factory: typing.Optional[typing.Callable[[], typing.Any]] = MISSING,
+        pre_formatter: typing.Callable[[typing.Any], typing.Any] = MISSING,
         required: bool = False,
+        allow_none: bool = False,
         gt: typing.Optional[float] = None,
         ge: typing.Optional[float] = None,
         lt: typing.Optional[float] = None,
@@ -103,9 +123,40 @@ class Attrib:
             typing.List[typing.Callable[[typing.Any], typing.Any]]
         ] = MISSING,
     ):
+        """
+        Represents a data attribute with optional validation, default values, and formatting logic.
+
+        Attributes (via __slots__):
+            default (Any): A default value for the attribute, if provided.
+            default_factory (Callable): A callable that generates a default value.
+            pre_formatter (Callable): A function to preprocess/format the value before validation.
+            required (bool): Whether the attribute is required.
+            allow_none (bool): Whether None is an acceptable value.
+            gt (float): Value must be greater than this (exclusive).
+            ge (float): Value must be greater than or equal to this (inclusive).
+            lt (float): Value must be less than this (exclusive).
+            le (float): Value must be less than or equal to this (inclusive).
+            min_length (int): Minimum allowed length (for iterable types like strings/lists).
+            max_length (int): Maximum allowed length.
+            pattern (str or Pattern): Regex pattern the value must match (typically for strings).
+            _validators (List[Callable]): Custom validators to run on the value.
+
+        Args:
+            default (Any, optional): Static default value to use if none is provided.
+            default_factory (Callable, optional): Function that returns a default value.
+            pre_formatter (Callable, optional): Function to format/preprocess the value before validation.
+            required (bool): Whether this field is required (default: False).
+            allow_none (bool): Whether None is allowed as a value (default: False).
+            gt, ge, lt, le (float, optional): Numeric comparison constraints.
+            min_length, max_length (int, optional): Length constraints for sequences.
+            pattern (str or Pattern, optional): Regex pattern constraint.
+            validators (List[Callable], optional): Additional callables that validate the input.
+        """
         self.default = default
         self.default_factory = default_factory
+        self.pre_formatter = pre_formatter
         self.required = required
+        self.allow_none = allow_none
         self.gt = gt
         self.ge = ge
         self.lt = lt
@@ -132,14 +183,37 @@ class Attrib:
     def has_default(self):
         return self.default is not MISSING or self.default_factory is not MISSING
 
+    def has_pre_formatter(self):
+        return self.pre_formatter is not None and callable(self.pre_formatter)
+
     def _get_default(self) -> typing.Any:
         if self.default is not MISSING:
             return self.default
         elif self.default_factory is not MISSING:
             return self.default_factory()
 
+    def execute_pre_formatter(self, instance, fd: Field) -> None:
+        if self.has_pre_formatter():
+            value = getattr(instance, fd.name, None)
+            try:
+                value = self.pre_formatter(value)
+                if self.allow_none and value is None:
+                    setattr(instance, fd.name, None)
+                else:
+                    setattr(instance, fd.name, value)
+            except Exception as exc:
+                logger.error(
+                    "Pre-formatter error for %s : %s", (fd.name, exc), exc_info=exc
+                )
+                raise RuntimeError(
+                    f"Error occurred while executing the pre-formatter for field: {fd.name}"
+                ) from exc
+
     def validate(self, value: typing.Any, field_name: str) -> typing.Optional[bool]:
         value = value or self._get_default()
+
+        if self.allow_none and value is None:
+            return True
 
         if self.required and value is None:
             raise ValidationError(
@@ -152,7 +226,7 @@ class Attrib:
 
             # Skip the validation if 'validation_factor' is None, or if both 'value'
             # and 'self.default' are None
-            if validation_factor is None or (value is None and self.default is None):
+            if validation_factor is None or value is None:
                 continue
 
             validator = getattr(self, f"_validate_{name}")
@@ -165,6 +239,8 @@ class Attrib:
                 result = validator(instance, getattr(instance, fd.name))
                 if result is not None:
                     setattr(instance, fd.name, result)
+                elif self.allow_none:
+                    setattr(instance, fd.name, None)
             except Exception as e:
                 if isinstance(e, ValidationError):
                     raise
