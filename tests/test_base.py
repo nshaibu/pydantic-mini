@@ -533,3 +533,6 @@ class TestBase(unittest.TestCase):
     def test_disabling_type_checking(self):
         with self.assertRaises(ValidationError):
             self.DisabledTypeCheckValidationClass(email="nafiu", value="me")
+
+        with self.assertRaises(TypeError):
+            self.DisabledTypeCheckValidationClass(email="nafiu@ex.com", value="me")

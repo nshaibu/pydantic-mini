@@ -1,5 +1,6 @@
 from __future__ import annotations
 import re
+import logging
 import sys
 import types
 import typing
@@ -33,6 +34,8 @@ __all__ = (
     "get_origin",
     "get_args",
 )
+
+logger = logging.getLogger(__name__)
 
 
 # backward compatibility
@@ -188,6 +191,23 @@ class Attrib:
             return self.default
         elif self.default_factory is not MISSING:
             return self.default_factory()
+
+    def execute_pre_formatter(self, instance, fd: Field) -> None:
+        if self.has_pre_formatter():
+            value = getattr(instance, fd.name, None)
+            try:
+                value = self.pre_formatter(value)
+                if self.allow_none and value is None:
+                    setattr(instance, fd.name, None)
+                else:
+                    setattr(instance, fd.name, value)
+            except Exception as exc:
+                logger.error(
+                    "Pre-formatter error for %s : %s", (fd.name, exc), exc_info=exc
+                )
+                raise RuntimeError(
+                    f"Error occurred while executing the pre-formatter for field: {fd.name}"
+                ) from exc
 
     def validate(self, value: typing.Any, field_name: str) -> typing.Optional[bool]:
         value = value or self._get_default()

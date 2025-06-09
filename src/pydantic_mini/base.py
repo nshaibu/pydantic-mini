@@ -225,13 +225,28 @@ class BaseModel(PreventOverridingMixin, metaclass=SchemaMeta):
         disable_typecheck = config.get("disable_typecheck", False)
         disable_all_validation = config.get("disable_all_validation", False)
 
-        if not disable_all_validation:
-            for fd in fields(self):
+        for fd in fields(self):
+            field_type = fd.type
+            query: Attrib = (
+                hasattr(field_type, "__metadata__")
+                and field_type.__metadata__[0]
+                or None
+            )
+            if query:
+                # execute the pre-formatters for all the fields
+                query.execute_pre_formatter(self, fd)
+
+            if not disable_all_validation:
                 # no type validation for Any field type and type checking is not disabled
-                if fd.type is not typing.Any and not disable_typecheck:
+                if field_type is not typing.Any and not disable_typecheck:
                     self._inner_schema_value_preprocessor(fd)
                     self._field_type_validator(fd)
-
+                else:
+                    # run other field validators when type checking is disabled
+                    if query:
+                        value = getattr(self, fd.name, None)
+                        query.execute_field_validators(self, fd)
+                        query.validate(value, fd.name)
                 try:
                     result = self.validate(getattr(self, fd.name), fd)
                     if result is not None:
