@@ -66,8 +66,8 @@ from pydantic_mini.exceptions import ValidationError
 # by returning the transformed value from the validator function or method.
 
 # NOTE: Validators must raise ValidationError if validation condition fails.
-
 # NOTE: pydantic_mini use type annotation to enforce type constraints.
+# NOTE: pre-formatters are used for formatting values before typechecking runtime is executed.
 
 # Custom validation for not accepting name kofi
 def kofi_not_accepted(instance, value: str):
