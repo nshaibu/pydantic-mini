@@ -54,7 +54,11 @@ class SchemaMeta(type):
     def get_non_annotated_fields(cls, attrs, exclude: typing.Tuple = None):
         if exclude is None:
             exclude = []
+
         for field_name, value in attrs.items():
+            if isinstance(value, (classmethod, staticmethod)):
+                continue
+
             if (
                 not field_name.startswith("__")
                 and field_name not in exclude
