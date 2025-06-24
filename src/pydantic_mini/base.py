@@ -56,7 +56,11 @@ class SchemaMeta(type):
             exclude = []
 
         for field_name, value in attrs.items():
-            if isinstance(value, (classmethod, staticmethod)):
+            if isinstance(value, (classmethod, staticmethod, property)):
+                continue
+
+            # ignore ABC class internal state manager
+            if "_abc_impl" == field_name:
                 continue
 
             if (
