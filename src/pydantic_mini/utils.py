@@ -3,6 +3,8 @@ import logging
 import inspect
 from dataclasses import MISSING
 
+from pydantic_mini.typing import is_builtin_type
+
 logger = logging.getLogger(__name__)
 
 
@@ -47,17 +49,6 @@ def get_function_call_args(
     return params_dict
 
 
-# def init_class(
-#     klass: typing.Type, params: typing.Union[typing.Dict[str, typing.Any], object]
-# ):
-#     kwargs = get_function_call_args(klass.__init__, params)
-#     excluded_kwargs = {key: params[key] for key in params if key not in kwargs}
-#     instance = klass(**kwargs)
-#     if excluded_kwargs:
-#         instance.__dict__.update(excluded_kwargs)
-#     return instance
-
-
 def init_class(
     klass: typing.Type[T], 
     params: typing.Union[typing.Dict[str, typing.Any], object],
@@ -95,6 +86,9 @@ def init_class(
             param_dict = vars(params)
     except (TypeError, AttributeError) as e:
         raise AttributeError(f"Cannot extract parameters from {type(params)}: {e}")
+
+    if is_builtin_type(klass):
+        return param_dict
     
     try:
         constructor_kwargs = get_function_call_args(klass.__init__, param_dict)
