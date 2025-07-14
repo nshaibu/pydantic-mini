@@ -41,6 +41,13 @@ logger = logging.getLogger(__name__)
 # backward compatibility
 NoneType = getattr(types, "NoneType", type(None))
 
+COLLECTION_TYPES = frozenset([
+    list, tuple, set, frozenset, dict,
+    collections.deque, collections.defaultdict,
+    collections.Counter, collections.OrderedDict
+])
+
+
 
 _DATACLASS_CONFIG_FIELD: typing.List[str] = [
     "init",
@@ -400,13 +407,7 @@ def is_optional_type(typ):
 
 def is_collection(typ) -> typing.Tuple[bool, typing.Optional[type]]:
     origin = get_origin(typ)
-    if origin and origin in (
-        list,
-        tuple,
-        frozenset,
-        set,
-        collections.deque,
-    ):
+    if origin and origin in COLLECTION_TYPES:
         return True, origin
     return False, None
 
