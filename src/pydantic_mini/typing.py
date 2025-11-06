@@ -425,23 +425,26 @@ def is_any_type(typ) -> bool:
 
 
 def get_type(typ):
-    origin = get_origin(typ)
-    type_args = get_args(typ)
-
     if is_type(typ):
         return typ
-    elif is_optional_type(typ):
+
+    if is_optional_type(typ):
         type_args = get_args(typ)
         if type_args:
             return get_type(type_args[0])
         else:
             return None
-    elif is_type(origin):
-        return origin
-    elif len(type_args) > 0:
-        return get_type(type_args[0])
-    elif is_any_type(typ):
+
+    if is_any_type(typ):
         return object
+
+    origin = get_origin(typ)
+    if is_type(origin):
+        return origin
+
+    type_args = get_args(typ)
+    if len(type_args) > 0:
+        return get_type(type_args[0])
     else:
         return None
 
