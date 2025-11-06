@@ -41,12 +41,19 @@ logger = logging.getLogger(__name__)
 # backward compatibility
 NoneType = getattr(types, "NoneType", type(None))
 
-COLLECTION_TYPES = frozenset([
-    list, tuple, set, frozenset, dict,
-    collections.deque, collections.defaultdict,
-    collections.Counter, collections.OrderedDict
-])
-
+COLLECTION_TYPES = frozenset(
+    [
+        list,
+        tuple,
+        set,
+        frozenset,
+        dict,
+        collections.deque,
+        collections.defaultdict,
+        collections.Counter,
+        collections.OrderedDict,
+    ]
+)
 
 
 _DATACLASS_CONFIG_FIELD: typing.List[str] = [
@@ -378,24 +385,65 @@ def is_class_var_type(typ) -> bool:
     return typ is typing.ClassVar or get_origin(typ) is typing.ClassVar
 
 
+from typing import Any, get_origin, get_args
+import sys
+
+
+def is_any_type(typ) -> bool:
+    """
+    Check if a type annotation is typing.Any.
+
+    Args:
+        typ: A type annotation to check
+
+    Returns:
+        True if the annotation is typing.Any, False otherwise
+
+    Examples:
+        >>> is_any_type(Any)
+        True
+        >>> is_any_type(int)
+        False
+        >>> is_any_type(str)
+        False
+    """
+    if typ is Any:
+        return True
+
+    # In some Python versions, Any might be represented differently
+    # Check by type name as fallback
+    type_name = getattr(typ, "__name__", None)
+    if type_name == "Any":
+        return True
+
+    # Check the module and qualname for edge cases
+    if hasattr(typ, "__module__") and hasattr(typ, "__name__"):
+        if typ.__module__ == "typing" and typ.__name__ == "Any":
+            return True
+
+    return False
+
+
 def get_type(typ):
+    origin = get_origin(typ)
+    type_args = get_args(typ)
+
     if is_type(typ):
         return typ
-
-    if is_optional_type(typ):
+    elif is_optional_type(typ):
         type_args = get_args(typ)
         if type_args:
             return get_type(type_args[0])
         else:
-            return
-
-    origin = get_origin(typ)
-    if is_type(origin):
+            return None
+    elif is_type(origin):
         return origin
-
-    type_args = get_args(typ)
-    if len(type_args) > 0:
+    elif len(type_args) > 0:
         return get_type(type_args[0])
+    elif is_any_type(typ):
+        return object
+    else:
+        return None
 
 
 def is_optional_type(typ):
