@@ -8,9 +8,9 @@ import collections
 from dataclasses import MISSING, Field, InitVar
 
 if sys.version_info < (3, 9):
-    from typing_extensions import Annotated, get_origin, get_args
+    from typing_extensions import Annotated, get_origin, get_args, ForwardRef
 else:
-    from typing import Annotated, get_origin, get_args
+    from typing import Annotated, get_origin, get_args, ForwardRef
 
 from .exceptions import ValidationError
 
@@ -198,6 +198,7 @@ class Attrib:
             return self.default
         elif self.default_factory is not MISSING:
             return self.default_factory()
+        return MISSING
 
     def execute_pre_formatter(self, instance, fd: Field) -> None:
         if self.has_pre_formatter():
@@ -410,6 +411,42 @@ def is_collection(typ) -> typing.Tuple[bool, typing.Optional[type]]:
     if origin and origin in COLLECTION_TYPES:
         return True, origin
     return False, None
+
+
+def get_forward_type(typ):
+    """
+    Determine if a type annotation is a forward reference and extract the type.
+
+    Args:
+        typ: A type annotation that may be a forward reference
+
+    Returns:
+        The string name of the forward reference if it is one, otherwise None
+    """
+    # Check if it's already a string
+    if isinstance(typ, str):
+        return typ
+
+    # Check if it's a ForwardRef object (Python 3.7+)
+    if isinstance(typ, ForwardRef):
+        # In Python 3.7-3.10, use __forward_arg__
+        # In Python 3.11+, use __arg__
+        if sys.version_info >= (3, 11):
+            return typ.__arg__
+        else:
+            return typ.__forward_arg__
+
+    # Check if it's a generic type with forward references (e.g., List['MyClass'])
+    origin = get_origin(typ)
+    if origin is not None:
+        args = get_args(typ)
+        # Return the first forward reference found in generic args
+        for arg in args:
+            forward = get_forward_type(arg)
+            if forward:
+                return forward
+
+    return None
 
 
 def is_builtin_type(typ):

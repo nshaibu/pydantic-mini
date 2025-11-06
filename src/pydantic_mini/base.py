@@ -9,6 +9,7 @@ from .typing import (
     get_type,
     get_origin,
     get_args,
+    get_forward_type,
     MiniAnnotated,
     Attrib,
     is_collection,
@@ -122,6 +123,7 @@ class SchemaMeta(type):
         else:
             if field_name in attrs:
                 return type(value)
+        return typing.Any
 
     @classmethod
     def _prepare_model_fields(cls, attrs: typing.Dict[str, typing.Any]) -> None:
@@ -165,9 +167,18 @@ class SchemaMeta(type):
 
             if not is_mini_annotated(annotation):
                 if get_type(annotation) is None:
-                    raise TypeError(
-                        f"Field '{field_name}' must be annotated with a real type. {annotation} is not a type"
-                    )
+                    # Let's confirm that the annotation isn't a forward type
+                    # Forward Types are only for static analyzers and thus cannot
+                    # be used at runtime for validation so essentially we will annotate
+                    # the filed with typing.Any
+                    forward_annotation = get_forward_type(annotation)
+                    if forward_annotation is None:
+                        raise TypeError(
+                            f"Field '{field_name}' must be annotated with a real type. {annotation} is not a type"
+                        )
+                    else:
+                        annotation = typing.Any
+
                 annotation = MiniAnnotated[
                     annotation,
                     Attrib(
