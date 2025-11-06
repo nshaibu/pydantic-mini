@@ -403,7 +403,7 @@ def is_any_type(typ) -> bool:
         >>> is_any_type(str)
         False
     """
-    if typ is Any:
+    if typ is typing.Any:
         return True
 
     # In some Python versions, Any might be represented differently
