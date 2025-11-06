@@ -385,10 +385,6 @@ def is_class_var_type(typ) -> bool:
     return typ is typing.ClassVar or get_origin(typ) is typing.ClassVar
 
 
-from typing import Any, get_origin, get_args
-import sys
-
-
 def is_any_type(typ) -> bool:
     """
     Check if a type annotation is typing.Any.
