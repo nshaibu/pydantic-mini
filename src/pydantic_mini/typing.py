@@ -479,7 +479,10 @@ def get_forward_type(typ):
         # In Python 3.7-3.10, use __forward_arg__
         # In Python 3.11+, use __arg__
         if sys.version_info >= (3, 11):
-            return typ.__arg__
+            try:
+                return typ.__arg__
+            except AttributeError:
+                return getattr(typ, '__forward_arg__', typing.Any)
         else:
             return typ.__forward_arg__
 
