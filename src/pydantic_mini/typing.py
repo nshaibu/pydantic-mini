@@ -108,6 +108,7 @@ class Attrib:
         "default_factory",
         "pre_formatter",
         "required",
+        "help_text",
         "allow_none",
         "gt",
         "ge",
@@ -125,6 +126,7 @@ class Attrib:
         default_factory: typing.Optional[typing.Callable[[], typing.Any]] = MISSING,
         pre_formatter: typing.Callable[[typing.Any], typing.Any] = MISSING,
         required: bool = False,
+        help_text: typing.Optional[str] = None,
         allow_none: bool = False,
         gt: typing.Optional[float] = None,
         ge: typing.Optional[float] = None,
@@ -171,6 +173,7 @@ class Attrib:
         self.pre_formatter = pre_formatter
         self.required = required
         self.allow_none = allow_none
+        self.help_text = help_text
         self.gt = gt
         self.ge = ge
         self.lt = lt
