@@ -7,6 +7,7 @@
 - [Core Concepts](#core-concepts)
 - [API Reference](#api-reference)
 - [Validation](#validation)
+- [Preformatters](#preformatters)
 - [Serialization](#serialization)
 - [Configuration](#configuration)
 - [Advanced Usage](#advanced-usage)
@@ -90,10 +91,13 @@ class User(BaseModel):
 `Attrib` defines field attributes and validation rules:
 - `default`: Default value for the field
 - `default_factory`: Function to generate default value
-- `max_length`: Maximum length for strings
-- `gt`: Greater than validation for numbers
 - `pattern`: Regex pattern for string validation
 - `validators`: List of custom validator functions
+- `pre_formatter`: Function to format/preprocess the value before validation.
+- `required`: Whether this field is required (default: False).
+- `allow_none`: Whether None is allowed as a value (default: False).
+- `gt`, `ge`, `lt`, `le`: Numeric comparison constraints.
+- `min_length`, `max_length` (int, optional): Length constraints for sequences.
 
 ## API Reference
 
@@ -252,6 +256,338 @@ class StrictModel(BaseModel):
 - **Error Handling**: Validators must raise `ValidationError` when validation fails
 - **Type Enforcement**: Type annotation constraints are enforced at runtime
 - **Pre-formatting**: Use validators for formatting values before type checking
+
+## Preformatters
+
+Preformatters are callables that transform field values **before** validation occurs. While validators can also transform values, they do so **after** validation has been performed. Preformatters allow you to modify or convert input data into the expected format before any type checking or validation rules are applied.
+
+### When to Use Preformatters
+
+Preformatters are particularly useful for:
+- Converting string representations to enum values
+- Transforming dictionaries into custom objects
+- Normalizing data formats before validation
+- Type coercion that needs to happen before type checking
+- Conditional transformations based on input type
+
+### Defining a Preformatter
+
+A preformatter is a function that takes a single value argument and returns the transformed value:
+
+```python
+def to_pow2(x: int) -> int:
+    """Square the input value."""
+    return x ** 2
+```
+
+Assign the preformatter to the `pre_formatter` argument in `Attrib`:
+
+```python
+class MathModel(BaseModel):
+    squared_value: MiniAnnotated[int, Attrib(pre_formatter=to_pow2)]
+
+# Usage
+model = MathModel(squared_value=5)
+print(model.squared_value)  # Output: 25
+```
+
+### Execution Order
+
+Understanding the order of operations is crucial:
+
+1. **Preformatter** - Transforms the raw input value
+2. **Type Validation** - Checks if the value matches the field's type annotation
+3. **Built-in Validators** - Applies Attrib validators (max_length, gt, pattern, etc.)
+4. **Custom Validators** - Applies custom validation functions
+5. **Method Validators** - Applies validate_<field_name> methods
+
+### Basic Example
+
+```python
+from pydantic_mini import BaseModel, MiniAnnotated, Attrib
+
+def uppercase_formatter(value: str) -> str:
+    """Convert string to uppercase before validation."""
+    if isinstance(value, str):
+        return value.upper()
+    return value
+
+class User(BaseModel):
+    username: MiniAnnotated[str, Attrib(
+        pre_formatter=uppercase_formatter,
+        max_length=20
+    )]
+
+# The username will be converted to uppercase before validation
+user = User(username="john_doe")
+print(user.username)  # Output: JOHN_DOE
+```
+
+### Enum Resolution Example
+
+A common use case is converting string values to enum instances:
+
+```python
+from enum import Enum
+from typing import Union
+from pydantic_mini.exceptions import ValidationError
+
+class Status(Enum):
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+    PENDING = "pending"
+
+def resolve_str_to_enum(
+    enum_klass: type[Enum], 
+    value: str, 
+    use_lower_case: bool = False
+) -> Union[Enum, str]:
+    """Resolve string value to enum instance."""
+    if not isinstance(value, str):
+        return value
+    
+    attr_name = value.lower() if use_lower_case else value.upper()
+    enum_attr = getattr(enum_klass, attr_name, None)
+    
+    if enum_attr is None:
+        raise ValidationError(
+            f"Invalid enum value {value} for {enum_klass.__name__}",
+            code="invalid_enum"
+        )
+    
+    return enum_attr
+
+class Task(BaseModel):
+    name: str
+    status: MiniAnnotated[
+        Status,
+        Attrib(
+            default=Status.PENDING,
+            pre_formatter=lambda val: resolve_str_to_enum(
+                Status, val, use_lower_case=False
+            )
+        )
+    ]
+
+# Usage - string automatically converted to enum
+task = Task(name="Deploy", status="ACTIVE")
+print(task.status)  # Output: Status.ACTIVE
+print(type(task.status))  # Output: <enum 'Status'>
+```
+
+### Dictionary to Model Conversion
+
+Preformatters can convert nested dictionaries into model instances:
+
+```python
+class Address(BaseModel):
+    street: str
+    city: str
+    country: str
+
+class Person(BaseModel):
+    name: str
+    address: MiniAnnotated[
+        Address,
+        Attrib(
+            pre_formatter=lambda val: (
+                Address.loads(val, _format="dict")
+                if isinstance(val, dict)
+                else val
+            )
+        )
+    ]
+
+# Automatically converts dictionary to Address instance
+person = Person(
+    name="Alice",
+    address={"street": "123 Main St", "city": "New York", "country": "USA"}
+)
+
+print(person.address.city)  # Output: New York
+```
+
+### Complex Example from Volnux
+
+Here's a real-world example from the [Volnux](https://github.com/nshaibu/volnux) project demonstrating advanced preformatter usage:
+
+```python
+import typing
+from enum import Enum
+from dataclasses import dataclasses
+
+class ResultEvaluationStrategy(Enum):
+    ALL_MUST_SUCCEED = "all_must_succeed"
+    ANY_MUST_SUCCEED = "any_must_succeed"
+
+class StopCondition(Enum):
+    ON_FIRST_SUCCESS = "on_first_success"
+    ON_FIRST_FAILURE = "on_first_failure"
+
+class ExecutorInitializerConfig(BaseModel):
+    max_workers: int = 4
+    thread_name_prefix: str = "Executor"
+
+def resolve_str_to_enum(
+    enum_klass: typing.Type[Enum], 
+    value: str, 
+    use_lower_case: bool = False
+) -> typing.Union[Enum, str]:
+    """Resolve enum value to enum class."""
+    if not isinstance(value, str):
+        return value
+    
+    attr_name = value.lower() if use_lower_case else value.upper()
+    enum_attr = getattr(enum_klass, attr_name, None)
+    
+    if enum_attr is None:
+        raise ValidationError(
+            f"Invalid enum value {value} for {enum_klass.__name__}", 
+            code="invalid_enum"
+        )
+    
+    return enum_attr
+
+class Options(BaseModel):
+    """
+    Task execution configuration options that can be passed to a task or
+    task groups in pointy scripts, e.g., A[retry_attempts=3], {A->B}[retry_attempts=3].
+    """
+    
+    # Core execution options with validation
+    retry_attempts: MiniAnnotated[int, Attrib(default=0, ge=0)]
+    executor: MiniAnnotated[typing.Optional[str], Attrib(default=None)]
+    
+    # Configuration dictionaries with preformatter
+    executor_config: MiniAnnotated[
+        typing.Union[ExecutorInitializerConfig, dict],
+        Attrib(
+            default_factory=lambda: ExecutorInitializerConfig(),
+            pre_formatter=lambda val: (
+                ExecutorInitializerConfig.from_dict(val)
+                if isinstance(val, dict)
+                else val
+            ),
+        ),
+    ]
+    extras: MiniAnnotated[dict, Attrib(default_factory=dict)]
+    
+    # Execution state and control with enum preformatters
+    result_evaluation_strategy: MiniAnnotated[
+        ResultEvaluationStrategy,
+        Attrib(
+            default=ResultEvaluationStrategy.ALL_MUST_SUCCEED,
+            pre_formatter=lambda val: resolve_str_to_enum(
+                ResultEvaluationStrategy, val, use_lower_case=False
+            ),
+        ),
+    ]
+    stop_condition: MiniAnnotated[
+        typing.Union[StopCondition, None],
+        Attrib(
+            default=None,
+            pre_formatter=lambda val: val
+            and resolve_str_to_enum(StopCondition, val, use_lower_case=False)
+            or None,
+        ),
+    ]
+    bypass_event_checks: typing.Optional[bool]
+    
+    class Config:
+        disable_typecheck = False
+        disable_all_validation = False
+    
+    @classmethod
+    def from_dict(cls, options_dict: typing.Dict[str, typing.Any]) -> "Options":
+        """
+        Create Options instance from dictionary, placing unknown fields in extras.
+        
+        Args:
+            options_dict: Dictionary containing option values
+            
+        Returns:
+            Options instance with known fields populated and unknown fields in extras
+        """
+        known_fields = {field.name for field in dataclasses.fields(cls)}
+        
+        option = {}
+        for field_name, value in options_dict.items():
+            if field_name in known_fields:
+                option[field_name] = value
+            else:
+                # Place unknown fields in extras
+                if "extras" not in option:
+                    option["extras"] = {}
+                option["extras"][field_name] = value
+        
+        return cls.loads(option, _format="dict")
+
+# Usage example
+options = Options(
+    retry_attempts=3,
+    executor_config={"max_workers": 8, "thread_name_prefix": "Worker"},
+    result_evaluation_strategy="ALL_MUST_SUCCEED",  # String converted to enum
+    stop_condition="ON_FIRST_FAILURE"  # String converted to enum
+)
+
+print(options.executor_config.max_workers)  # Output: 8
+print(options.result_evaluation_strategy)  # Output: ResultEvaluationStrategy.ALL_MUST_SUCCEED
+```
+
+### Best Practices
+
+1. **Type Checking**: Always check the input type before transformation to handle various input formats gracefully
+2. **Error Handling**: Raise `ValidationError` for invalid transformations that cannot be resolved
+3. **Idempotency**: Ensure preformatters can handle already-transformed values (e.g., enum already being an enum)
+4. **Lambda Functions**: Use lambda functions for simple, inline transformations
+5. **Dedicated Functions**: Create dedicated functions for complex or reusable transformation logic
+
+### Preformatter vs Validator
+
+| Aspect | Preformatter | Validator |
+|--------|-------------|-----------|
+| Execution timing | Before validation | After validation |
+| Primary purpose | Data transformation | Data validation |
+| Type checking | Happens after | Already completed |
+| Use case | Format conversion | Business rule enforcement |
+| Return value | Transformed value | Validated/transformed value |
+
+### Combined Example
+
+Preformatters and validators work together seamlessly:
+
+```python
+def strip_whitespace(value: str) -> str:
+    """Preformatter: Remove leading/trailing whitespace."""
+    if isinstance(value, str):
+        return value.strip()
+    return value
+
+def validate_no_numbers(instance, value: str) -> str:
+    """Validator: Ensure no digits in string."""
+    if any(char.isdigit() for char in value):
+        raise ValidationError("Value cannot contain numbers")
+    return value
+
+class CleanModel(BaseModel):
+    clean_text: MiniAnnotated[
+        str,
+        Attrib(
+            pre_formatter=strip_whitespace,
+            validators=[validate_no_numbers],
+            max_length=50
+        )
+    ]
+
+# Execution order:
+# 1. Preformatter strips whitespace: "  hello  " → "hello"
+# 2. Type validation: Check if string
+# 3. Built-in validator: Check max_length
+# 4. Custom validator: Check for numbers
+
+model = CleanModel(clean_text="  hello world  ")
+print(model.clean_text)  # Output: "hello world"
+```
 
 ## Serialization
 
