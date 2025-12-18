@@ -32,7 +32,7 @@ Pydantic-mini is a lightweight Python library that extends the functionality of 
 
 ## Installation
 
-### From PyPI (when available)
+### From PyPI
 ```bash
 pip install pydantic-mini
 ```
