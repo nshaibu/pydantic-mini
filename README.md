@@ -537,7 +537,7 @@ class ContactInfo(BaseModel):
 
 class Person(BaseModel):
     name: str
-    contact: Optional[ContactInfo] = None
+    contact: Optional[ContactInfo] # No need to assign = None
 
 # Without contact info
 person1 = Person(name="Alice")
@@ -549,6 +549,26 @@ person2 = Person(
     contact={"email": "bob@example.com", "phone": "+1234567890"}
 )
 print(person2.contact.email)  # Output: bob@example.com
+```
+
+**Note on Optional Fields**: When you annotate a field with typing.Optional, you don't need to explicitly assign None as the default value (i.e., field: `Optional[Type] = None`). The library automatically handles Optional annotations and treats the field as having a None default value. Simply writing field: `Optional[Type]` is sufficient.
+```python
+from typing import Optional
+
+class User(BaseModel):
+    name: str
+    # These are equivalent:
+    email: Optional[str]           # Automatic None default
+    phone: Optional[str] = None    # Explicit None default (redundant but valid)
+    
+    # Both fields will default to None if not provided
+    address: Optional[str]         # Library handles this automatically
+
+# All optional fields default to None
+user = User(name="Alice")
+print(user.email)    # Output: None
+print(user.phone)    # Output: None
+print(user.address)  # Output: None
 ```
 
 ### Serialization of Nested Models
