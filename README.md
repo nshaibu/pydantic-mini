@@ -59,7 +59,7 @@ print(person)  # Person(name='Alice', age=30)
 # Validation happens automatically
 try:
     invalid_person = Person(name="Bob", age="not_a_number")
-except ValidationError as e:
+except TypeError as e:
     print(f"Validation failed: {e}")
 ```
 
