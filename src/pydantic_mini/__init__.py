@@ -19,7 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ===========================================================================================
 """
 
-__version__ = "1.1.6"
+__version__ = "1.1.8"
 
 from .base import BaseModel
 from .typing import Attrib, MiniAnnotated
