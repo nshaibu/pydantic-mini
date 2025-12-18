@@ -7,6 +7,8 @@
 - [Core Concepts](#core-concepts)
 - [API Reference](#api-reference)
 - [Validation](#validation)
+   - [Nested Validation](#nested-validation)
+   - [Self References and Forward References](#self-References-and-forward-references)
 - [Preformatters](#preformatters)
 - [Serialization](#serialization)
 - [Configuration](#configuration)
@@ -256,6 +258,428 @@ class StrictModel(BaseModel):
 - **Error Handling**: Validators must raise `ValidationError` when validation fails
 - **Type Enforcement**: Type annotation constraints are enforced at runtime
 - **Pre-formatting**: Use validators for formatting values before type checking
+
+## Nested Validation
+
+Pydantic-mini supports nested validation, allowing you to compose complex data models from simpler ones. When a field is annotated with another `BaseModel` class, the validation system automatically applies to the nested class and all its fields recursively. This enables you to build hierarchical data structures with comprehensive validation at every level.
+
+### Basic Nested Validation
+
+When you define a field using another `BaseModel` class, both the parent and nested models are fully validated:
+
+```python
+from pydantic_mini import BaseModel
+
+class School(BaseModel):
+    name: str
+    location: str
+
+class Person(BaseModel):
+    name: str
+    school: School
+```
+
+### Instantiation Methods
+
+You can instantiate nested models in two ways:
+
+#### 1. Using Nested Model Instances
+
+```python
+# Create nested model first
+school = School(name="KNUST", location="Kumasi")
+person = Person(name="Nafiu", school=school)
+
+print(person.name)  # Output: Nafiu
+print(person.school.name)  # Output: KNUST
+print(person.school.location)  # Output: Kumasi
+```
+
+#### 2. Using Dictionary Auto-Conversion
+
+```python
+# Pass dictionary - automatically converted to School instance
+person = Person(
+    name="Nafiu",
+    school={"name": "KNUST", "location": "Kumasi"}
+)
+
+print(person.school.name)  # Output: KNUST
+print(type(person.school))  # Output: <class 'School'>
+```
+
+When a dictionary is provided for a nested `BaseModel` field, pydantic-mini automatically:
+1. Detects that the field type is a `BaseModel` subclass
+2. Converts the dictionary to an instance of that class
+3. Applies all validation rules defined in the nested class
+
+### Validation Propagation
+
+All validation rules defined in nested models are fully enforced:
+
+```python
+from pydantic_mini import BaseModel, MiniAnnotated, Attrib
+from pydantic_mini.exceptions import ValidationError
+
+class School(BaseModel):
+    name: MiniAnnotated[str, Attrib(max_length=50)]
+    location: str
+    student_count: MiniAnnotated[int, Attrib(gt=0)]
+    
+    def validate_name(self, value, field):
+        if len(value) < 3:
+            raise ValidationError("School name must be at least 3 characters")
+        return value
+
+class Person(BaseModel):
+    name: MiniAnnotated[str, Attrib(max_length=30)]
+    age: MiniAnnotated[int, Attrib(gt=0)]
+    school: School
+
+# Valid nested validation
+person = Person(
+    name="Nafiu",
+    age=25,
+    school={"name": "KNUST", "location": "Kumasi", "student_count": 5000}
+)
+
+# Invalid nested validation - will raise ValidationError
+try:
+    invalid_person = Person(
+        name="John",
+        age=20,
+        school={"name": "AB", "location": "City", "student_count": -10}
+    )
+except ValidationError as e:
+    print(f"Validation failed: {e}")
+    # Errors: School name too short, student_count not greater than 0
+```
+
+### Multi-Level Nesting
+
+You can nest models at multiple levels, and validation will propagate through all levels:
+
+```python
+class Address(BaseModel):
+    street: str
+    city: str
+    postal_code: MiniAnnotated[str, Attrib(pattern=r"^\d{5}$")]
+
+class School(BaseModel):
+    name: str
+    address: Address
+    principal: str
+
+class Person(BaseModel):
+    name: str
+    school: School
+
+# Multi-level nested instantiation
+person = Person(
+    name="Nafiu",
+    school={
+        "name": "KNUST",
+        "principal": "Dr. Smith",
+        "address": {
+            "street": "University Avenue",
+            "city": "Kumasi",
+            "postal_code": "12345"
+        }
+    }
+)
+
+print(person.school.address.city)  # Output: Kumasi
+```
+
+### Lists of Nested Models
+
+You can also have collections of nested models:
+
+```python
+from typing import List
+
+class Course(BaseModel):
+    code: str
+    title: str
+    credits: MiniAnnotated[int, Attrib(gt=0)]
+
+class Student(BaseModel):
+    name: str
+    courses: List[Course]
+
+# Instantiate with list of dictionaries
+student = Student(
+    name="Alice",
+    courses=[
+        {"code": "CS101", "title": "Intro to Programming", "credits": 3},
+        {"code": "CS201", "title": "Data Structures", "credits": 4},
+        {"code": "MATH101", "title": "Calculus I", "credits": 3}
+    ]
+)
+
+# All courses are validated Course instances
+for course in student.courses:
+    print(f"{course.code}: {course.title} ({course.credits} credits)")
+```
+
+### Non-BaseModel Nested Classes
+
+**Important**: Nested validation only works for `BaseModel` subclasses. If you use a regular Python class or standard dataclass, only the class instance itself is validated, **not** the fields within it.
+
+#### Example with Regular Python Class
+
+```python
+# Regular Python class (not BaseModel)
+class School:
+    def __init__(self, name: str, location: str):
+        self.name = name
+        self.location = location
+
+class Person(BaseModel):
+    name: str
+    school: School
+
+# You must pass a School instance - dictionaries won't work
+school = School(name="KNUST", location="Kumasi")
+person = Person(name="Nafiu", school=school)
+
+# This will FAIL - dictionaries not auto-converted for non-BaseModel classes
+try:
+    person = Person(
+        name="Nafiu",
+        school={"name": "KNUST", "location": "Kumasi"}
+    )
+except TypeError as e:
+    print(f"Error: {e}")  # Expected School instance, got dict
+
+# Field validation is NOT applied to School's internal fields
+# Only type checking that 'school' is a School instance occurs
+school_invalid = School(name="", location="")  # No validation errors!
+person = Person(name="Nafiu", school=school_invalid)  # This works!
+```
+
+#### Example with Standard Dataclass
+
+```python
+from dataclasses import dataclass
+
+# Standard dataclass (not BaseModel)
+@dataclass
+class School:
+    name: str
+    location: str
+
+class Person(BaseModel):
+    name: str
+    school: School
+
+# Must pass School instance
+school = School(name="KNUST", location="Kumasi")
+person = Person(name="Nafiu", school=school)
+
+# No field validation for School's attributes
+# No automatic dictionary conversion
+```
+
+## Self References and Forward References
+
+**Limitation**: Self-referential models are not supported. When a model references itself, it is treated as a forward reference, and type validation is disabled for that field.
+
+```python
+from typing import Optional, List
+
+class TreeNode(BaseModel):
+    value: int
+    # Self-reference - type validation disabled for this field
+    children: Optional[List['TreeNode']] = None
+
+# Type validation for 'children' is disabled
+# You can assign any value without type checking
+node = TreeNode(value=1, children=[{"value": 2}, {"value": 3}])
+
+# No automatic conversion to TreeNode instances
+# No validation of nested children
+```
+
+**Workaround**: For tree-like structures, consider manual instantiation:
+
+```python
+class TreeNode(BaseModel):
+    value: int
+    children: Optional[List] = None  # Use generic List
+    
+    def add_child(self, child: 'TreeNode'):
+        """Manually manage children with validation."""
+        if self.children is None:
+            self.children = []
+        if not isinstance(child, TreeNode):
+            raise ValidationError("Child must be a TreeNode instance")
+        self.children.append(child)
+
+# Manual tree construction
+root = TreeNode(value=1)
+child1 = TreeNode(value=2)
+child2 = TreeNode(value=3)
+root.add_child(child1)
+root.add_child(child2)
+```
+
+### Optional Nested Models
+
+Nested models can be optional:
+
+```python
+from typing import Optional
+
+class ContactInfo(BaseModel):
+    email: MiniAnnotated[str, Attrib(pattern=r"^\S+@\S+\.\S+$")]
+    phone: str
+
+class Person(BaseModel):
+    name: str
+    contact: Optional[ContactInfo] = None
+
+# Without contact info
+person1 = Person(name="Alice")
+print(person1.contact)  # Output: None
+
+# With contact info
+person2 = Person(
+    name="Bob",
+    contact={"email": "bob@example.com", "phone": "+1234567890"}
+)
+print(person2.contact.email)  # Output: bob@example.com
+```
+
+### Serialization of Nested Models
+
+Nested models are properly serialized to all supported formats:
+
+```python
+class Address(BaseModel):
+    city: str
+    country: str
+
+class Person(BaseModel):
+    name: str
+    address: Address
+
+person = Person(
+    name="Nafiu",
+    address={"city": "Kumasi", "country": "Ghana"}
+)
+
+# Serialize to dictionary
+person_dict = person.dump(_format="dict")
+print(person_dict)
+# Output: {'name': 'Nafiu', 'address': {'city': 'Kumasi', 'country': 'Ghana'}}
+
+# Serialize to JSON
+person_json = person.dump(_format="json")
+print(person_json)
+# Output: '{"name": "Nafiu", "address": {"city": "Kumasi", "country": "Ghana"}}'
+
+# Load from JSON with nested validation
+loaded_person = Person.loads(person_json, _format="json")
+print(type(loaded_person.address))  # Output: <class 'Address'>
+```
+
+### Complex Nested Example
+
+Here's a comprehensive example demonstrating nested validation with multiple levels:
+
+```python
+from typing import List, Optional
+from enum import Enum
+
+class Grade(Enum):
+    A = "A"
+    B = "B"
+    C = "C"
+    D = "D"
+    F = "F"
+
+class Course(BaseModel):
+    code: MiniAnnotated[str, Attrib(pattern=r"^[A-Z]{2,4}\d{3}$")]
+    title: MiniAnnotated[str, Attrib(max_length=100)]
+    credits: MiniAnnotated[int, Attrib(gt=0, default=3)]
+    grade: Optional[Grade] = None
+    
+    def validate_credits(self, value, field):
+        if value > 6:
+            raise ValidationError("Course credits cannot exceed 6")
+        return value
+
+class Semester(BaseModel):
+    year: MiniAnnotated[int, Attrib(gt=2000)]
+    term: MiniAnnotated[str, Attrib(pattern=r"^(Fall|Spring|Summer)$")]
+    courses: List[Course]
+    gpa: MiniAnnotated[float, Attrib(gt=0.0, default=0.0)]
+    
+    def validate_courses(self, value, field):
+        if len(value) > 7:
+            raise ValidationError("Cannot enroll in more than 7 courses per semester")
+        return value
+
+class Student(BaseModel):
+    student_id: MiniAnnotated[str, Attrib(pattern=r"^\d{8}$")]
+    name: str
+    major: str
+    semesters: List[Semester]
+    
+    def validate_student_id(self, value, field):
+        if not value.startswith("20"):
+            raise ValidationError("Student ID must start with '20'")
+        return value
+
+# Create a student with nested validation at multiple levels
+student = Student(
+    student_id="20123456",
+    name="Nafiu Shaibu",
+    major="Computer Science",
+    semesters=[
+        {
+            "year": 2023,
+            "term": "Fall",
+            "gpa": 3.8,
+            "courses": [
+                {"code": "CS101", "title": "Intro to Programming", "credits": 3, "grade": "A"},
+                {"code": "MATH201", "title": "Calculus II", "credits": 4, "grade": "B"},
+                {"code": "ENG101", "title": "English Composition", "credits": 3, "grade": "A"}
+            ]
+        },
+        {
+            "year": 2024,
+            "term": "Spring",
+            "gpa": 3.9,
+            "courses": [
+                {"code": "CS201", "title": "Data Structures", "credits": 4},
+                {"code": "CS221", "title": "Computer Architecture", "credits": 3}
+            ]
+        }
+    ]
+)
+
+# Access deeply nested validated data
+print(f"Student: {student.name}")
+print(f"First semester GPA: {student.semesters[0].gpa}")
+print(f"First course: {student.semesters[0].courses[0].title}")
+
+# Serialize with all nested data
+student_json = student.dump(_format="json")
+# All nested models properly serialized
+```
+
+### Best Practices for Nested Validation
+
+1. **Use BaseModel for Nested Classes**: Always inherit from `BaseModel` for nested models to get full validation support
+2. **Dictionary Convenience**: Leverage automatic dictionary-to-model conversion for cleaner instantiation code
+3. **Validate Early**: Define validation rules at the appropriate level - validate school data in the School model, not in Person
+4. **Avoid Deep Nesting**: While supported, excessive nesting (>3-4 levels) can make models hard to maintain
+5. **Document Relationships**: Clearly document parent-child relationships in docstrings
+6. **Type Hints**: Always use proper type hints for nested fields to enable automatic conversion
+7. **Optional Nesting**: Use `Optional[]` for nested models that may not always be present
+
 
 ## Preformatters
 
