@@ -1,4 +1,4 @@
-# Pydantic-Mini Documentation
+# Pydantic-Mini
 
 ## Table of Contents
 - [Overview](#overview)
