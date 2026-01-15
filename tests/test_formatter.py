@@ -3,7 +3,11 @@ import json
 import typing
 from dataclasses import dataclass, is_dataclass
 from pydantic_mini import BaseModel, MiniAnnotated, Attrib
-from pydantic_mini.formatters import DictModelFormatter, JSONModelFormatter, CSVModelFormatter
+from pydantic_mini.formatters import (
+    DictModelFormatter,
+    JSONModelFormatter,
+    CSVModelFormatter,
+)
 
 
 class User(BaseModel):
@@ -46,10 +50,7 @@ def test_dict_formatter_single_encode():
 
 def test_dict_formatter_list_encode():
     formatter = DictModelFormatter()
-    data = [
-        {"id": 1, "username": "alice"},
-        {"id": 2, "username": "bob"}
-    ]
+    data = [{"id": 1, "username": "alice"}, {"id": 2, "username": "bob"}]
 
     users = formatter.encode(User, data)
 
@@ -63,7 +64,7 @@ def test_dict_formatter_nested_encode():
     formatter = DictModelFormatter()
     data = {
         "title": "Hello Pydantic Mini",
-        "author": {"id": 99, "username": "nathaniel"}
+        "author": {"id": 99, "username": "nathaniel"},
     }
 
     post = formatter.encode(Post, data)
@@ -162,7 +163,7 @@ def test_csv_decode_to_string():
     formatter = CSVModelFormatter()
     items = [
         InventoryItem(id=1, name="Widget", quantity=100),
-        InventoryItem(id=2, name="Gadget", quantity=50)
+        InventoryItem(id=2, name="Gadget", quantity=50),
     ]
 
     csv_output = formatter.decode(items)

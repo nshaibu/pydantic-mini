@@ -20,6 +20,7 @@ from .typing import (
     is_class_var_type,
     ModelConfigWrapper,
     resolve_annotations,
+    get_type_hints,
 )
 from .utils import init_class
 from .exceptions import ValidationError
@@ -286,7 +287,7 @@ class BaseModel(PreventOverridingMixin, metaclass=SchemaMeta):
 
         if cls not in _RESOLVED_TYPE_CACHE:
             try:
-                _RESOLVED_TYPE_CACHE[cls] = typing.get_type_hints(
+                _RESOLVED_TYPE_CACHE[cls] = get_type_hints(
                     cls,
                     globalns=getattr(inspect.getmodule(cls), "__dict__", None),
                     localns=globals(),

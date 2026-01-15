@@ -20,7 +20,7 @@ from pydantic_mini.typing import (
     MiniAnnotated,
     Attrib,
     NoneType,
-    Annotated
+    Annotated,
 )
 
 

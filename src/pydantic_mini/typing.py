@@ -35,6 +35,7 @@ __all__ = (
     "get_args",
     "get_forward_type",
     "resolve_annotations",
+    "get_type_hints",
 )
 
 logger = logging.getLogger(__name__)
@@ -450,12 +451,26 @@ def get_type(typ):
         return None
 
 
+def get_type_hints(
+    typ: typing.Any,
+    globalns: typing.Optional[typing.Dict[str, typing.Any]] = None,
+    localns: typing.Optional[typing.Dict[str, typing.Any]] = None,
+    include_extras: bool = False,
+) -> typing.Dict[str, typing.Any]:
+    if sys.version_info <= (3, 8):
+        return typing.get_type_hints(typ, globalns, localns)
+    else:
+        return typing.get_type_hints(
+            typ, globalns, localns, include_extras=include_extras
+        )
+
+
 def resolve_annotations(
     cls: type, global_ns: typing.Any = None, local_ns: typing.Any = None
 ) -> typing.Dict[str, typing.Any]:
     try:
         # This handles PEP 563
-        return typing.get_type_hints(
+        return get_type_hints(
             cls, globalns=global_ns, localns=local_ns, include_extras=True
         )
     except (TypeError, NameError):
