@@ -1,6 +1,7 @@
 import typing
 import keyword
 import inspect
+from enum import Enum
 from collections import OrderedDict
 from dataclasses import dataclass, fields, Field, field, MISSING, is_dataclass
 from .formatters import BaseModelFormatter
@@ -18,6 +19,7 @@ from .typing import (
     is_initvar_type,
     is_class_var_type,
     ModelConfigWrapper,
+    resolve_annotations,
 )
 from .utils import init_class
 from .exceptions import ValidationError
@@ -27,6 +29,8 @@ __all__ = ("BaseModel",)
 
 PYDANTIC_MINI_EXTRA_MODEL_CONFIG = "__pydantic_mini_extra_config__"
 
+_RESOLVED_TYPE_CACHE = {}
+
 
 class SchemaMeta(type):
 
@@ -35,9 +39,11 @@ class SchemaMeta(type):
         if not parents:
             return super().__new__(cls, name, bases, attrs)
 
-        cls._prepare_model_fields(attrs)
+        new_attrs = cls.build_class_namespace(name, attrs)
 
-        new_class = super().__new__(cls, name, bases, attrs, **kwargs)
+        cls._prepare_model_fields(new_attrs)
+
+        new_class = super().__new__(cls, name, bases, new_attrs, **kwargs)
 
         model_config_class: typing.Type = getattr(new_class, "Config", None)
 
@@ -49,10 +55,29 @@ class SchemaMeta(type):
             config.get_non_dataclass_config(),
         )
 
-        return dataclass(new_class, **config.get_dataclass_config())
+        return dataclass(new_class, **config.get_dataclass_config())  # type: ignore
 
     @classmethod
-    def get_non_annotated_fields(cls, attrs, exclude: typing.Tuple = None):
+    def build_class_namespace(
+        cls, name: str, attrs: typing.Dict[str, typing.Any]
+    ) -> typing.Dict[str, typing.Any]:
+        new_attrs = attrs.copy()
+
+        # Parse annotation by class
+        if "__annotations__" in attrs:
+            temp_class = type(f"{name}Temp", (object,), attrs)
+            resolved_hints = resolve_annotations(
+                temp_class,
+                global_ns=getattr(inspect.getmodule(temp_class), "__dict__", None),
+            )
+
+            for field_name, resolved_type in resolved_hints.items():
+                new_attrs["__annotations__"][field_name] = resolved_type
+
+        return new_attrs
+
+    @classmethod
+    def get_non_annotated_fields(cls, attrs, exclude: typing.Tuple[typing.Any] = None):
         if exclude is None:
             exclude = []
 
@@ -126,7 +151,10 @@ class SchemaMeta(type):
         return typing.Any
 
     @classmethod
-    def _prepare_model_fields(cls, attrs: typing.Dict[str, typing.Any]) -> None:
+    def _prepare_model_fields(
+        cls,
+        attrs: typing.Dict[str, typing.Any],
+    ) -> None:
         ann_with_defaults = OrderedDict()
         ann_without_defaults = OrderedDict()
 
@@ -169,7 +197,7 @@ class SchemaMeta(type):
                 if get_type(annotation) is None:
                     # Let's confirm that the annotation isn't a forward type
                     # Forward Types are only for static analyzers and thus cannot
-                    # be used at runtime for validation so essentially we will annotate
+                    # be used at runtime for validation, so essentially we will annotate
                     # the filed with typing.Any
                     forward_annotation = get_forward_type(annotation)
                     if forward_annotation is None:
@@ -177,7 +205,21 @@ class SchemaMeta(type):
                             f"Field '{field_name}' must be annotated with a real type. {annotation} is not a type"
                         )
                     else:
-                        annotation = typing.Any
+                        # import pdb;pdb.set_trace()
+                        # try:
+                        #     forward_annotation = (
+                        #         typing.ForwardRef(forward_annotation)
+                        #         if isinstance(forward_annotation, str)
+                        #         else forward_annotation
+                        #     )
+                        #     annotation = evaluate_forward_ref(
+                        #         forward_annotation,
+                        #         global_ns=global_ns,
+                        #         local_ns=locals(),
+                        #     )
+                        # except (TypeError, NameError):
+                        #     annotation = typing.Any
+                        pass
 
                 annotation = MiniAnnotated[
                     annotation,
@@ -240,26 +282,46 @@ class BaseModel(PreventOverridingMixin, metaclass=SchemaMeta):
         pass
 
     def __post_init__(self, *args, **kwargs) -> None:
+        cls = self.__class__
+
+        if cls not in _RESOLVED_TYPE_CACHE:
+            try:
+                _RESOLVED_TYPE_CACHE[cls] = typing.get_type_hints(
+                    cls,
+                    globalns=getattr(inspect.getmodule(cls), "__dict__", None),
+                    localns=globals(),
+                    include_extras=True,
+                )
+            except NameError:
+                # If it fails, the class is likely defined in a local scope (like a test)
+                # We can't easily get the function's locals, so we fallback
+                # or try to use the class's own namespace.
+                _RESOLVED_TYPE_CACHE[cls] = getattr(cls, "__annotations__", {})
+
+        resolved_hints = _RESOLVED_TYPE_CACHE[cls]
+
         config = getattr(self, PYDANTIC_MINI_EXTRA_MODEL_CONFIG, {})
         disable_typecheck = config.get("disable_typecheck", False)
         disable_all_validation = config.get("disable_all_validation", False)
 
         for fd in fields(self):
-            field_type = fd.type
+            resolved_field_type = resolved_hints.get(fd.name, fd.type)
+
             query: Attrib = (
-                hasattr(field_type, "__metadata__")
-                and field_type.__metadata__[0]
+                hasattr(resolved_field_type, "__metadata__")
+                and resolved_field_type.__metadata__[0]
                 or None
             )
+
             if query:
                 # execute the pre-formatters for all the fields
                 query.execute_pre_formatter(self, fd)
 
             if not disable_all_validation:
                 # no type validation for Any field type and type checking is not disabled
-                if field_type is not typing.Any and not disable_typecheck:
-                    self._inner_schema_value_preprocessor(fd)
-                    self._field_type_validator(fd)
+                if resolved_field_type is not typing.Any and not disable_typecheck:
+                    self._inner_schema_value_preprocessor(fd, resolved_field_type)
+                    self._field_type_validator(fd, resolved_field_type)
                 else:
                     # run other field validators when type checking is disabled
                     if query:
@@ -281,11 +343,12 @@ class BaseModel(PreventOverridingMixin, metaclass=SchemaMeta):
 
         self.__model_init__(*args, **kwargs)
 
-    def _inner_schema_value_preprocessor(self, fd: Field):
+    def _inner_schema_value_preprocessor(
+        self, fd: Field, resolved_field_type: typing.Any
+    ) -> None:
         value = getattr(self, fd.name)
-        field_type = fd.type
 
-        actual_annotated_type = field_type.__args__[0]
+        actual_annotated_type = resolved_field_type.__args__[0]
         type_args = (
             hasattr(actual_annotated_type, "__args__")
             and actual_annotated_type.__args__
@@ -297,12 +360,13 @@ class BaseModel(PreventOverridingMixin, metaclass=SchemaMeta):
             if type_args and isinstance(value, (dict, list)):
                 value = value if isinstance(value, list) else [value]
                 inner_type: type = type_args[0]
+
                 if is_builtin_type(inner_type):
                     setattr(
                         self, fd.name, actual_type([inner_type(val) for val in value])
                     )
                 elif (
-                    isinstance(inner_type, BaseModel)
+                    (isinstance(inner_type, type) and issubclass(inner_type, BaseModel))
                     or is_dataclass(inner_type)
                     or inspect.isclass(inner_type)
                 ):
@@ -320,19 +384,31 @@ class BaseModel(PreventOverridingMixin, metaclass=SchemaMeta):
                             ]
                         ),
                     )
-        elif type_args is None and actual_annotated_type:
-            actual_annotated_type = get_type(actual_annotated_type)
-            if (
-                isinstance(actual_annotated_type, BaseModel)
-                or is_dataclass(actual_annotated_type)
-                or inspect.isclass(actual_annotated_type)
-            ):
-                if isinstance(value, dict):
-                    setattr(self, fd.name, init_class(actual_annotated_type, value))
+        elif actual_annotated_type:
+            actual_type = get_type(actual_annotated_type)
 
-    def _field_type_validator(self, fd: Field):
+            if isinstance(value, dict):
+                if (
+                    (
+                        isinstance(actual_type, type)
+                        and isinstance(actual_type, BaseModel)
+                    )
+                    or is_dataclass(actual_type)
+                    or inspect.isclass(actual_type)
+                ):
+                    setattr(self, fd.name, init_class(actual_type, value))
+
+            # Enums (Coerce string/int to Enum member)
+            elif isinstance(actual_type, type) and issubclass(actual_type, Enum):
+                if value is not None and not isinstance(value, actual_type):
+                    try:
+                        setattr(self, fd.name, actual_type(value))
+                    except ValueError:
+                        pass
+
+    def _field_type_validator(self, fd: Field, resolved_field_type: typing.Any) -> None:
         value = getattr(self, fd.name, None)
-        field_type = fd.type
+        field_type = resolved_field_type
 
         if not is_mini_annotated(field_type):
             raise ValidationError(
@@ -387,6 +463,8 @@ class BaseModel(PreventOverridingMixin, metaclass=SchemaMeta):
                 return tuple([get_type(_type) for _type in type_args])
         else:
             return (get_type(typ),)
+
+        return None
 
     @staticmethod
     def get_formatter_by_name(name: str) -> BaseModelFormatter:

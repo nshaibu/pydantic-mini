@@ -89,7 +89,7 @@ class JSONModelFormatter(DictModelFormatter):
         return super().encode(_type, json.loads(obj))
 
     def decode(self, instance: T) -> str:
-        return json.dumps(super().decode(instance))
+        return json.dumps(super().decode(instance), default=str)
 
 
 class CSVModelFormatter(DictModelFormatter):

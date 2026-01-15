@@ -33,6 +33,8 @@ __all__ = (
     "is_class_var_type",
     "get_origin",
     "get_args",
+    "get_forward_type",
+    "resolve_annotations",
 )
 
 logger = logging.getLogger(__name__)
@@ -448,6 +450,19 @@ def get_type(typ):
         return None
 
 
+def resolve_annotations(
+    cls: type, global_ns: typing.Any = None, local_ns: typing.Any = None
+) -> typing.Dict[str, typing.Any]:
+    try:
+        # This handles PEP 563
+        return typing.get_type_hints(
+            cls, globalns=global_ns, localns=local_ns, include_extras=True
+        )
+    except (TypeError, NameError):
+        # Fallback for unsupported syntax in older Python versions
+        return getattr(cls, "__annotations__", {})
+
+
 def is_optional_type(typ):
     if hasattr(typ, "__origin__") and typ.__origin__ is typing.Union:
         return NoneType in typ.__args__
@@ -485,7 +500,7 @@ def get_forward_type(typ):
             try:
                 return typ.__arg__
             except AttributeError:
-                return getattr(typ, '__forward_arg__', typing.Any)
+                return getattr(typ, "__forward_arg__", typing.Any)
         else:
             return typ.__forward_arg__
 
@@ -529,7 +544,8 @@ class MiniAnnotated:
         typ = params[0]
 
         actual_typ = get_type(typ)
-        if actual_typ is None:
+        forward_typ = get_forward_type(typ)
+        if actual_typ is None and forward_typ is None:
             raise ValueError("'{}' is not a type".format(params[0]))
 
         query = params[1]
