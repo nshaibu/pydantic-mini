@@ -139,7 +139,6 @@ def test_json_decode_single():
 
 
 def test_json_decode_list():
-    """Test decoding a list of models into a single JSON array string."""
     formatter = JSONModelFormatter()
     skills = [Skill(name="AI", level=9), Skill(name="ML", level=8)]
 
@@ -175,7 +174,6 @@ def test_csv_decode_to_string():
 
 
 def test_csv_single_instance_decode():
-    """Test that a single instance is handled correctly by the list-wrapping logic."""
     formatter = CSVModelFormatter()
     item = InventoryItem(id=1, name="Solo", quantity=1)
 

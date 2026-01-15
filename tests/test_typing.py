@@ -1,7 +1,7 @@
 import pytest
 import typing
 import sys
-from typing import Annotated, List, Optional, Union, Any, ClassVar, ForwardRef
+from typing import List, Optional, Union, Any, ClassVar, ForwardRef
 from dataclasses import InitVar, dataclass
 
 from pydantic_mini.typing import (
@@ -20,6 +20,7 @@ from pydantic_mini.typing import (
     MiniAnnotated,
     Attrib,
     NoneType,
+    Annotated
 )
 
 
