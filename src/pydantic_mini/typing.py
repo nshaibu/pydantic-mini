@@ -457,7 +457,7 @@ def get_type_hints(
     localns: typing.Optional[typing.Dict[str, typing.Any]] = None,
     include_extras: bool = False,
 ) -> typing.Dict[str, typing.Any]:
-    if sys.version_info <= (3, 8):
+    if sys.version_info < (3, 9):
         return typing.get_type_hints(typ, globalns, localns)
     else:
         return typing.get_type_hints(
