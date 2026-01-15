@@ -68,7 +68,12 @@ def test_is_optional_type():
 def test_get_type_resolution():
     assert get_type(int) is int
     assert get_type(Optional[int]) is int
-    assert get_type(Any) is object
+
+    if sys.version_info < (3, 11):
+        assert get_type(Any) is object
+    else:
+        assert get_type(Any) is typing.Any
+
     assert get_type(List[int]) is list
 
 
