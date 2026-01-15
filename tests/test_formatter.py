@@ -1,5 +1,6 @@
 import pytest
 import json
+import typing
 from dataclasses import dataclass, is_dataclass
 from pydantic_mini import BaseModel, MiniAnnotated, Attrib
 from pydantic_mini.formatters import DictModelFormatter, JSONModelFormatter, CSVModelFormatter
@@ -22,14 +23,13 @@ class Skill(BaseModel):
 
 class Developer(BaseModel):
     name: str
-    skills: MiniAnnotated[list[Skill], Attrib(default_factory=list)]
+    skills: MiniAnnotated[typing.List[Skill], Attrib(default_factory=list)]
 
 
 class InventoryItem(BaseModel):
     id: int
     name: str
     quantity: int
-
 
 
 def test_dict_formatter_single_encode():
