@@ -47,6 +47,7 @@ Here's a simple example to get you started:
 
 ```python
 from pydantic_mini import BaseModel
+from pydantic_mini.exceptions import ValidationError
 
 class Person(BaseModel):
     name: str
@@ -59,7 +60,7 @@ print(person)  # Person(name='Alice', age=30)
 # Validation happens automatically
 try:
     invalid_person = Person(name="Bob", age="not_a_number")
-except ValidationError as e:
+except TypeError as e:
     print(f"Validation failed: {e}")
 ```
 
@@ -341,8 +342,9 @@ class EventResult(BaseModel):
 For fields that are only used during initialization:
 
 ```python
-from dataclasses import InitVar
 import typing
+from pydantic_mini import BaseModel
+from pydantic_mini.typing import InitVar
 
 class DatabaseRecord(BaseModel):
     id: int
@@ -361,6 +363,7 @@ Use `default_factory` for dynamic default values:
 ```python
 import uuid
 from datetime import datetime
+from pydantic_mini import Attrib, BaseModel, MiniAnnotated
 
 class Task(BaseModel):
     id: MiniAnnotated[str, Attrib(default_factory=lambda: str(uuid.uuid4()))]
@@ -474,9 +477,11 @@ except ValidationError as e:
 ### E-commerce Product Example
 
 ```python
-from decimal import Decimal
+import re
 from typing import Optional, List
 from enum import Enum
+from pydantic_mini import BaseModel, Attrib, MiniAnnotated
+from pydantic_mini.exceptions import ValidationError
 
 class ProductStatus(Enum):
     ACTIVE = "active"
@@ -560,11 +565,13 @@ except ValidationError as e:
 ### Best Practices for Error Handling
 
 ```python
+from pydantic_mini.exceptions import ValidationError
+
 def create_user_safely(user_data):
     try:
         user = User.loads(user_data, _format="dict")
         return {"success": True, "user": user}
-    except ValidationError as e:
+    except (ValidationError, TypeError) as e:
         return {"success": False, "error": str(e)}
     except Exception as e:
         return {"success": False, "error": f"Unexpected error: {e}"}
@@ -589,6 +596,9 @@ else:
 For performance-critical scenarios, you can disable validation:
 
 ```python
+from pydantic_mini import BaseModel, Attrib, MiniAnnotated
+
+
 class FastModel(BaseModel):
     field1: str
     field2: int
