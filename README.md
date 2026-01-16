@@ -2,8 +2,8 @@
 
 [![Build Status](https://github.com/nshaibu/pydantic_mini/actions/workflows/python_package.yml/badge.svg)](https://github.com/nshaibu/pydantic_mini/actions)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![Status](https://img.shields.io/pypi/status/event-pipeline.svg)](https://pypi.python.org/pypi/pydantic_mini)
-[![Latest](https://img.shields.io/pypi/v/event-pipeline.svg)](https://pypi.python.org/pypi/pydantic_mini)
+[![Status](https://img.shields.io/pypi/status/pydantic_mini.svg)](https://pypi.python.org/pypi/pydantic_mini)
+[![Latest](https://img.shields.io/pypi/v/pydantic_mini.svg)](https://pypi.python.org/pypi/pydantic_mini)
 [![PyV](https://img.shields.io/pypi/pyversions/pydantic_mini.svg)](https://pypi.python.org/pypi/pydantic_mini)
 [![codecov](https://codecov.io/gh/nshaibu/pydantic-mini/graph/badge.svg?token=HBP9OC9IJJ)](https://codecov.io/gh/nshaibu/pydantic-mini)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](http://makeapullrequest.com)
