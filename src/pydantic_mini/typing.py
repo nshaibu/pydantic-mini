@@ -4,6 +4,7 @@ import logging
 import sys
 import types
 import typing
+import inspect
 import collections
 from dataclasses import MISSING, Field, InitVar
 
@@ -465,17 +466,29 @@ def get_type_hints(
         )
 
 
+def get_mini_annotation_hints(cls, global_ns=None, local_ns=None):
+    try:
+        hints = get_type_hints(
+            cls, globalns=global_ns, localns=local_ns, include_extras=True
+        )
+
+        if sys.version_info >= (3, 14):
+            # Check if 3.14 stripped our MiniAnnotated/Annotated wrapper
+            # If hints contain 'str' instead of 'Annotated[str, ...]', we must fall back
+            first_hint = next(iter(hints.values()), None)
+            if first_hint and typing.get_origin(first_hint) is not typing.Annotated:
+                return inspect.get_annotations(cls, eval_str=True)
+
+        return hints
+    except (TypeError, NameError):
+        return getattr(cls, "__annotations__", {})
+
+
 def resolve_annotations(
     cls: type, global_ns: typing.Any = None, local_ns: typing.Any = None
 ) -> typing.Dict[str, typing.Any]:
-    try:
-        # This handles PEP 563
-        return get_type_hints(
-            cls, globalns=global_ns, localns=local_ns, include_extras=True
-        )
-    except (TypeError, NameError):
-        # Fallback for unsupported syntax in older Python versions
-        return getattr(cls, "__annotations__", {})
+
+    return get_mini_annotation_hints(cls, global_ns=global_ns, local_ns=local_ns)
 
 
 def is_optional_type(typ):

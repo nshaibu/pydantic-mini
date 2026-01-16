@@ -287,11 +287,10 @@ class BaseModel(PreventOverridingMixin, metaclass=SchemaMeta):
 
         if cls not in _RESOLVED_TYPE_CACHE:
             try:
-                _RESOLVED_TYPE_CACHE[cls] = get_type_hints(
+                _RESOLVED_TYPE_CACHE[cls] = resolve_annotations(
                     cls,
-                    globalns=getattr(inspect.getmodule(cls), "__dict__", None),
-                    localns=globals(),
-                    include_extras=True,
+                    global_ns=getattr(inspect.getmodule(cls), "__dict__", None),
+                    local_ns=globals(),
                 )
             except NameError:
                 # If it fails, the class is likely defined in a local scope (like a test)
