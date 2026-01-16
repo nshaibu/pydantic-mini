@@ -1,5 +1,14 @@
 # Pydantic-Mini
 
+[![Build Status](https://github.com/nshaibu/pydantic_mini/actions/workflows/python_package.yml/badge.svg)](https://github.com/nshaibu/pydantic_mini/actions)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Status](https://img.shields.io/pypi/status/event-pipeline.svg)](https://pypi.python.org/pypi/pydantic_mini)
+[![Latest](https://img.shields.io/pypi/v/event-pipeline.svg)](https://pypi.python.org/pypi/pydantic_mini)
+[![PyV](https://img.shields.io/pypi/pyversions/pydantic_mini.svg)](https://pypi.python.org/pypi/pydantic_mini)
+[![codecov](https://codecov.io/gh/nshaibu/pydantic-mini/graph/badge.svg?token=HBP9OC9IJJ)](https://codecov.io/gh/nshaibu/pydantic-mini)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](http://makeapullrequest.com)
+
+
 ## Table of Contents
 - [Overview](#overview)
 - [Installation](#installation)
@@ -1078,6 +1087,70 @@ people = Person.loads(csv_data, _format="csv")
 for person in people:
     print(person)
 ```
+
+### Custom Formatters
+
+To create a custom formatter, you need to inherit from `BaseModelFormatter` and implement the `encode` (reading data) and `decode` (writing data) methods.
+
+#### 1.Creating a YAML Formatter
+
+Here is an example of how to add YAML support using the PyYAML library.
+
+```python
+import yaml
+from typing import Type, Any
+from pydantic_mini.formatters import BaseModelFormatter, DictModelFormatter
+
+class YAMLModelFormatter(DictModelFormatter):
+    """
+    A custom formatter for YAML support.
+    Inheriting from DictModelFormatter allows us to reuse 
+    the dictionary-to-model logic.
+    """
+    format_name = "yaml"
+
+    def encode(self, _type: Type["BaseModel"], obj: str) -> Any:
+        # Convert YAML string to dict
+        data = yaml.safe_load(obj)
+        # Leverage DictModelFormatter logic to inflate models
+        return super().encode(_type, data)
+
+    def decode(self, instance: Any) -> str:
+        # Leverage DictModelFormatter to get a raw dict/list
+        data = super().decode(instance)
+        # Convert dict to YAML string
+        return yaml.dump(data)
+```
+
+#### 2. Using the Custom Formatter
+
+Once the class is defined, it is automatically registered. You can use it via the standard `.loads()` and `.dump()` methods on any `BaseModel`.
+
+```python
+class Task(BaseModel):
+    name: str
+    priority: int
+
+yaml_data = """
+name: "System Update"
+priority: 1
+"""
+
+# The library finds 'YAMLModelFormatter' via the 'yaml' key
+task = Task.loads(yaml_data, _format="yaml")
+print(task.name) # Output: System Update
+
+# Exporting back to YAML
+print(task.dump(_format="yaml"))
+```
+
+#### 3. Implementation Guidelines
+
+1. **Discovery**: As long as your formatter is imported in your runtime, it will be available.
+
+2. **DictModelFormatter as a Base**: It is highly recommended to inherit from `DictModelFormatter` rather than the raw BaseModelFormatter. This allows you to focus only on the string-to-dict conversion while the base class handles the complex recursive model inflation.
+
+3. **The format_name**: This string is the key used in the `_format` parameter. You can also provide a list or tuple of names if you want to support aliases (e.g., format_name = ("yaml", "yml")).
 
 ## Configuration
 
