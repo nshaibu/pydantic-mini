@@ -1,4 +1,4 @@
-# Pydantic-Mini Documentation
+# Pydantic-Mini
 
 ## Table of Contents
 - [Overview](#overview)
@@ -7,6 +7,9 @@
 - [Core Concepts](#core-concepts)
 - [API Reference](#api-reference)
 - [Validation](#validation)
+   - [Nested Validation](#nested-validation)
+   - [Self References and Forward References](#self-References-and-forward-references)
+- [Preformatters](#preformatters)
 - [Serialization](#serialization)
 - [Configuration](#configuration)
 - [Advanced Usage](#advanced-usage)
@@ -29,7 +32,7 @@ Pydantic-mini is a lightweight Python library that extends the functionality of 
 
 ## Installation
 
-### From PyPI (when available)
+### From PyPI
 ```bash
 pip install pydantic-mini
 ```
@@ -47,7 +50,6 @@ Here's a simple example to get you started:
 
 ```python
 from pydantic_mini import BaseModel
-from pydantic_mini.exceptions import ValidationError
 
 class Person(BaseModel):
     name: str
@@ -91,10 +93,13 @@ class User(BaseModel):
 `Attrib` defines field attributes and validation rules:
 - `default`: Default value for the field
 - `default_factory`: Function to generate default value
-- `max_length`: Maximum length for strings
-- `gt`: Greater than validation for numbers
 - `pattern`: Regex pattern for string validation
 - `validators`: List of custom validator functions
+- `pre_formatter`: Function to format/preprocess the value before validation.
+- `required`: Whether this field is required (default: False).
+- `allow_none`: Whether None is allowed as a value (default: False).
+- `gt`, `ge`, `lt`, `le`: Numeric comparison constraints.
+- `min_length`, `max_length` (int, optional): Length constraints for sequences.
 
 ## API Reference
 
@@ -254,6 +259,788 @@ class StrictModel(BaseModel):
 - **Type Enforcement**: Type annotation constraints are enforced at runtime
 - **Pre-formatting**: Use validators for formatting values before type checking
 
+## Nested Validation
+
+Pydantic-mini supports nested validation, allowing you to compose complex data models from simpler ones. When a field is annotated with another `BaseModel` class, the validation system automatically applies to the nested class and all its fields recursively. This enables you to build hierarchical data structures with comprehensive validation at every level.
+
+### Basic Nested Validation
+
+When you define a field using another `BaseModel` class, both the parent and nested models are fully validated:
+
+```python
+from pydantic_mini import BaseModel
+
+class School(BaseModel):
+    name: str
+    location: str
+
+class Person(BaseModel):
+    name: str
+    school: School
+```
+
+### Instantiation Methods
+
+You can instantiate nested models in two ways:
+
+#### 1. Using Nested Model Instances
+
+```python
+# Create nested model first
+school = School(name="KNUST", location="Kumasi")
+person = Person(name="Nafiu", school=school)
+
+print(person.name)  # Output: Nafiu
+print(person.school.name)  # Output: KNUST
+print(person.school.location)  # Output: Kumasi
+```
+
+#### 2. Using Dictionary Auto-Conversion
+
+```python
+# Pass dictionary - automatically converted to School instance
+person = Person(
+    name="Nafiu",
+    school={"name": "KNUST", "location": "Kumasi"}
+)
+
+print(person.school.name)  # Output: KNUST
+print(type(person.school))  # Output: <class 'School'>
+```
+
+When a dictionary is provided for a nested `BaseModel` field, pydantic-mini automatically:
+1. Detects that the field type is a `BaseModel` subclass
+2. Converts the dictionary to an instance of that class
+3. Applies all validation rules defined in the nested class
+
+### Validation Propagation
+
+All validation rules defined in nested models are fully enforced:
+
+```python
+from pydantic_mini import BaseModel, MiniAnnotated, Attrib
+from pydantic_mini.exceptions import ValidationError
+
+class School(BaseModel):
+    name: MiniAnnotated[str, Attrib(max_length=50)]
+    location: str
+    student_count: MiniAnnotated[int, Attrib(gt=0)]
+    
+    def validate_name(self, value, field):
+        if len(value) < 3:
+            raise ValidationError("School name must be at least 3 characters")
+        return value
+
+class Person(BaseModel):
+    name: MiniAnnotated[str, Attrib(max_length=30)]
+    age: MiniAnnotated[int, Attrib(gt=0)]
+    school: School
+
+# Valid nested validation
+person = Person(
+    name="Nafiu",
+    age=25,
+    school={"name": "KNUST", "location": "Kumasi", "student_count": 5000}
+)
+
+# Invalid nested validation - will raise ValidationError
+try:
+    invalid_person = Person(
+        name="John",
+        age=20,
+        school={"name": "AB", "location": "City", "student_count": -10}
+    )
+except ValidationError as e:
+    print(f"Validation failed: {e}")
+    # Errors: School name too short, student_count not greater than 0
+```
+
+### Multi-Level Nesting
+
+You can nest models at multiple levels, and validation will propagate through all levels:
+
+```python
+class Address(BaseModel):
+    street: str
+    city: str
+    postal_code: MiniAnnotated[str, Attrib(pattern=r"^\d{5}$")]
+
+class School(BaseModel):
+    name: str
+    address: Address
+    principal: str
+
+class Person(BaseModel):
+    name: str
+    school: School
+
+# Multi-level nested instantiation
+person = Person(
+    name="Nafiu",
+    school={
+        "name": "KNUST",
+        "principal": "Dr. Smith",
+        "address": {
+            "street": "University Avenue",
+            "city": "Kumasi",
+            "postal_code": "12345"
+        }
+    }
+)
+
+print(person.school.address.city)  # Output: Kumasi
+```
+
+### Lists of Nested Models
+
+You can also have collections of nested models:
+
+```python
+from typing import List
+
+class Course(BaseModel):
+    code: str
+    title: str
+    credits: MiniAnnotated[int, Attrib(gt=0)]
+
+class Student(BaseModel):
+    name: str
+    courses: List[Course]
+
+# Instantiate with list of dictionaries
+student = Student(
+    name="Alice",
+    courses=[
+        {"code": "CS101", "title": "Intro to Programming", "credits": 3},
+        {"code": "CS201", "title": "Data Structures", "credits": 4},
+        {"code": "MATH101", "title": "Calculus I", "credits": 3}
+    ]
+)
+
+# All courses are validated Course instances
+for course in student.courses:
+    print(f"{course.code}: {course.title} ({course.credits} credits)")
+```
+
+### Non-BaseModel Nested Classes
+
+**Important**: Nested validation only works for `BaseModel` subclasses. If you use a regular Python class or standard dataclass, only the class instance itself is validated, **not** the fields within it.
+
+#### Example with Regular Python Class
+
+```python
+# Regular Python class (not BaseModel)
+class School:
+    def __init__(self, name: str, location: str):
+        self.name = name
+        self.location = location
+
+class Person(BaseModel):
+    name: str
+    school: School
+
+# You must pass a School instance - dictionaries won't work
+school = School(name="KNUST", location="Kumasi")
+person = Person(name="Nafiu", school=school)
+
+# This will FAIL - dictionaries not auto-converted for non-BaseModel classes
+try:
+    person = Person(
+        name="Nafiu",
+        school={"name": "KNUST", "location": "Kumasi"}
+    )
+except TypeError as e:
+    print(f"Error: {e}")  # Expected School instance, got dict
+
+# Field validation is NOT applied to School's internal fields
+# Only type checking that 'school' is a School instance occurs
+school_invalid = School(name="", location="")  # No validation errors!
+person = Person(name="Nafiu", school=school_invalid)  # This works!
+```
+
+#### Example with Standard Dataclass
+
+```python
+from dataclasses import dataclass
+
+# Standard dataclass (not BaseModel)
+@dataclass
+class School:
+    name: str
+    location: str
+
+class Person(BaseModel):
+    name: str
+    school: School
+
+# Must pass School instance
+school = School(name="KNUST", location="Kumasi")
+person = Person(name="Nafiu", school=school)
+
+# No field validation for School's attributes
+# No automatic dictionary conversion
+```
+
+## Self References and Forward References
+
+`pydantic-mini` fully supports self-referential models and forward references. 
+Unlike basic dataclasses, it automatically resolves string-based type hints and recursively
+inflates nested data into model instances during initialization.
+
+### Recursive Tree Structures
+
+You can define tree-like structures by referencing the class name as a string. These are automatically resolved and validated.
+
+```python
+from typing import Optional, List
+from pydantic_mini import BaseModel, MiniAnnotated, Attrib
+
+class TreeNode(BaseModel):
+    value: int
+    # Self-reference resolved at runtime
+    children: MiniAnnotated[List['TreeNode'], Attrib(default_factory=list)]
+
+# Automatic conversion to TreeNode instances
+# Nested dictionaries are recursively inflated
+root = TreeNode.loads({
+    "value": 1, 
+    "children": [
+        {"value": 2, "children": []}, 
+        {"value": 3, "children": [{"value": 4}]}
+    ]
+}, _format="dict")
+
+assert isinstance(root.children[0], TreeNode)
+assert root.children[1].children[0].value == 4
+```
+
+### Forward References
+
+Models can reference other models defined later in the same module or in different modules.
+
+```python
+class Parent(BaseModel):
+    name: str
+    # 'Child' is defined below but will be resolved successfully
+    first_born: MiniAnnotated["Child", Attrib()]
+
+class Child(BaseModel):
+    age: int
+
+# Full validation and inflation even with forward references
+p = Parent.loads({"name": "John", "first_born": {"age": 10}}, _format="dict")
+assert isinstance(p.first_born, Child)
+```
+
+### Optional Nested Models
+
+Nested models can be optional:
+
+```python
+from typing import Optional
+
+class ContactInfo(BaseModel):
+    email: MiniAnnotated[str, Attrib(pattern=r"^\S+@\S+\.\S+$")]
+    phone: str
+
+class Person(BaseModel):
+    name: str
+    contact: Optional[ContactInfo] # No need to assign = None
+
+# Without contact info
+person1 = Person(name="Alice")
+print(person1.contact)  # Output: None
+
+# With contact info
+person2 = Person(
+    name="Bob",
+    contact={"email": "bob@example.com", "phone": "+1234567890"}
+)
+print(person2.contact.email)  # Output: bob@example.com
+```
+
+**Note on Optional Fields**: When you annotate a field with typing.Optional, you don't need to explicitly assign None as the default value (i.e., field: `Optional[Type] = None`). The library automatically handles Optional annotations and treats the field as having a None default value. Simply writing field: `Optional[Type]` is sufficient.
+```python
+from typing import Optional
+
+class User(BaseModel):
+    name: str
+    # These are equivalent:
+    email: Optional[str]           # Automatic None default
+    phone: Optional[str] = None    # Explicit None default (redundant but valid)
+    
+    # Both fields will default to None if not provided
+    address: Optional[str]         # Library handles this automatically
+
+# All optional fields default to None
+user = User(name="Alice")
+print(user.email)    # Output: None
+print(user.phone)    # Output: None
+print(user.address)  # Output: None
+```
+
+### Serialization of Nested Models
+
+Nested models are properly serialized to all supported formats:
+
+```python
+class Address(BaseModel):
+    city: str
+    country: str
+
+class Person(BaseModel):
+    name: str
+    address: Address
+
+person = Person(
+    name="Nafiu",
+    address={"city": "Kumasi", "country": "Ghana"}
+)
+
+# Serialize to dictionary
+person_dict = person.dump(_format="dict")
+print(person_dict)
+# Output: {'name': 'Nafiu', 'address': {'city': 'Kumasi', 'country': 'Ghana'}}
+
+# Serialize to JSON
+person_json = person.dump(_format="json")
+print(person_json)
+# Output: '{"name": "Nafiu", "address": {"city": "Kumasi", "country": "Ghana"}}'
+
+# Load from JSON with nested validation
+loaded_person = Person.loads(person_json, _format="json")
+print(type(loaded_person.address))  # Output: <class 'Address'>
+```
+
+### Complex Nested Example
+
+Here's a comprehensive example demonstrating nested validation with multiple levels:
+
+```python
+from typing import List, Optional
+from enum import Enum
+
+class Grade(Enum):
+    A = "A"
+    B = "B"
+    C = "C"
+    D = "D"
+    F = "F"
+
+class Course(BaseModel):
+    code: MiniAnnotated[str, Attrib(pattern=r"^[A-Z]{2,4}\d{3}$")]
+    title: MiniAnnotated[str, Attrib(max_length=100)]
+    credits: MiniAnnotated[int, Attrib(gt=0, default=3)]
+    grade: Optional[Grade] = None
+    
+    def validate_credits(self, value, field):
+        if value > 6:
+            raise ValidationError("Course credits cannot exceed 6")
+        return value
+
+class Semester(BaseModel):
+    year: MiniAnnotated[int, Attrib(gt=2000)]
+    term: MiniAnnotated[str, Attrib(pattern=r"^(Fall|Spring|Summer)$")]
+    courses: List[Course]
+    gpa: MiniAnnotated[float, Attrib(gt=0.0, default=0.0)]
+    
+    def validate_courses(self, value, field):
+        if len(value) > 7:
+            raise ValidationError("Cannot enroll in more than 7 courses per semester")
+        return value
+
+class Student(BaseModel):
+    student_id: MiniAnnotated[str, Attrib(pattern=r"^\d{8}$")]
+    name: str
+    major: str
+    semesters: List[Semester]
+    
+    def validate_student_id(self, value, field):
+        if not value.startswith("20"):
+            raise ValidationError("Student ID must start with '20'")
+        return value
+
+# Create a student with nested validation at multiple levels
+student = Student(
+    student_id="20123456",
+    name="Nafiu Shaibu",
+    major="Computer Science",
+    semesters=[
+        {
+            "year": 2023,
+            "term": "Fall",
+            "gpa": 3.8,
+            "courses": [
+                {"code": "CS101", "title": "Intro to Programming", "credits": 3, "grade": "A"},
+                {"code": "MATH201", "title": "Calculus II", "credits": 4, "grade": "B"},
+                {"code": "ENG101", "title": "English Composition", "credits": 3, "grade": "A"}
+            ]
+        },
+        {
+            "year": 2024,
+            "term": "Spring",
+            "gpa": 3.9,
+            "courses": [
+                {"code": "CS201", "title": "Data Structures", "credits": 4},
+                {"code": "CS221", "title": "Computer Architecture", "credits": 3}
+            ]
+        }
+    ]
+)
+
+# Access deeply nested validated data
+print(f"Student: {student.name}")
+print(f"First semester GPA: {student.semesters[0].gpa}")
+print(f"First course: {student.semesters[0].courses[0].title}")
+
+# Serialize with all nested data
+student_json = student.dump(_format="json")
+# All nested models properly serialized
+```
+
+### Best Practices for Nested Validation
+
+1. **Use BaseModel for Nested Classes**: Always inherit from `BaseModel` for nested models to get full validation support
+2. **Dictionary Convenience**: Leverage automatic dictionary-to-model conversion for cleaner instantiation code
+3. **Validate Early**: Define validation rules at the appropriate level - validate school data in the School model, not in Person
+4. **Avoid Deep Nesting**: While supported, excessive nesting (>3-4 levels) can make models hard to maintain
+5. **Document Relationships**: Clearly document parent-child relationships in docstrings
+6. **Type Hints**: Always use proper type hints for nested fields to enable automatic conversion
+7. **Optional Nesting**: Use `Optional[]` for nested models that may not always be present
+
+
+## Preformatters
+
+Preformatters are callables that transform field values **before** validation occurs. While validators can also transform values, they do so **after** validation has been performed. Preformatters allow you to modify or convert input data into the expected format before any type checking or validation rules are applied.
+
+### When to Use Preformatters
+
+Preformatters are particularly useful for:
+- Converting string representations to enum values
+- Transforming dictionaries into custom objects
+- Normalizing data formats before validation
+- Type coercion that needs to happen before type checking
+- Conditional transformations based on input type
+
+### Defining a Preformatter
+
+A preformatter is a function that takes a single value argument and returns the transformed value:
+
+```python
+def to_pow2(x: int) -> int:
+    """Square the input value."""
+    return x ** 2
+```
+
+Assign the preformatter to the `pre_formatter` argument in `Attrib`:
+
+```python
+class MathModel(BaseModel):
+    squared_value: MiniAnnotated[int, Attrib(pre_formatter=to_pow2)]
+
+# Usage
+model = MathModel(squared_value=5)
+print(model.squared_value)  # Output: 25
+```
+
+### Execution Order
+
+Understanding the order of operations is crucial:
+
+1. **Preformatter** - Transforms the raw input value
+2. **Type Validation** - Checks if the value matches the field's type annotation
+3. **Built-in Validators** - Applies Attrib validators (max_length, gt, pattern, etc.)
+4. **Custom Validators** - Applies custom validation functions
+5. **Method Validators** - Applies validate_<field_name> methods
+
+### Basic Example
+
+```python
+from pydantic_mini import BaseModel, MiniAnnotated, Attrib
+
+def uppercase_formatter(value: str) -> str:
+    """Convert string to uppercase before validation."""
+    if isinstance(value, str):
+        return value.upper()
+    return value
+
+class User(BaseModel):
+    username: MiniAnnotated[str, Attrib(
+        pre_formatter=uppercase_formatter,
+        max_length=20
+    )]
+
+# The username will be converted to uppercase before validation
+user = User(username="john_doe")
+print(user.username)  # Output: JOHN_DOE
+```
+
+### Enum Resolution Example
+
+A common use case is converting string values to enum instances:
+
+```python
+from enum import Enum
+from typing import Union
+from pydantic_mini.exceptions import ValidationError
+
+class Status(Enum):
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+    PENDING = "pending"
+
+def resolve_str_to_enum(
+    enum_klass: type[Enum], 
+    value: str, 
+    use_lower_case: bool = False
+) -> Union[Enum, str]:
+    """Resolve string value to enum instance."""
+    if not isinstance(value, str):
+        return value
+    
+    attr_name = value.lower() if use_lower_case else value.upper()
+    enum_attr = getattr(enum_klass, attr_name, None)
+    
+    if enum_attr is None:
+        raise ValidationError(
+            f"Invalid enum value {value} for {enum_klass.__name__}",
+            code="invalid_enum"
+        )
+    
+    return enum_attr
+
+class Task(BaseModel):
+    name: str
+    status: MiniAnnotated[
+        Status,
+        Attrib(
+            default=Status.PENDING,
+            pre_formatter=lambda val: resolve_str_to_enum(
+                Status, val, use_lower_case=False
+            )
+        )
+    ]
+
+# Usage - string automatically converted to enum
+task = Task(name="Deploy", status="ACTIVE")
+print(task.status)  # Output: Status.ACTIVE
+print(type(task.status))  # Output: <enum 'Status'>
+```
+
+### Dictionary to Model Conversion
+
+Preformatters can convert nested dictionaries into model instances:
+
+```python
+class Address(BaseModel):
+    street: str
+    city: str
+    country: str
+
+class Person(BaseModel):
+    name: str
+    address: MiniAnnotated[
+        Address,
+        Attrib(
+            pre_formatter=lambda val: (
+                Address.loads(val, _format="dict")
+                if isinstance(val, dict)
+                else val
+            )
+        )
+    ]
+
+# Automatically converts dictionary to Address instance
+person = Person(
+    name="Alice",
+    address={"street": "123 Main St", "city": "New York", "country": "USA"}
+)
+
+print(person.address.city)  # Output: New York
+```
+
+### Complex Example from Volnux
+
+Here's a real-world example from the [Volnux](https://github.com/nshaibu/volnux) project demonstrating advanced preformatter usage:
+
+```python
+import typing
+from enum import Enum
+from dataclasses import dataclasses
+
+class ResultEvaluationStrategy(Enum):
+    ALL_MUST_SUCCEED = "all_must_succeed"
+    ANY_MUST_SUCCEED = "any_must_succeed"
+
+class StopCondition(Enum):
+    ON_FIRST_SUCCESS = "on_first_success"
+    ON_FIRST_FAILURE = "on_first_failure"
+
+class ExecutorInitializerConfig(BaseModel):
+    max_workers: int = 4
+    thread_name_prefix: str = "Executor"
+
+def resolve_str_to_enum(
+    enum_klass: typing.Type[Enum], 
+    value: str, 
+    use_lower_case: bool = False
+) -> typing.Union[Enum, str]:
+    """Resolve enum value to enum class."""
+    if not isinstance(value, str):
+        return value
+    
+    attr_name = value.lower() if use_lower_case else value.upper()
+    enum_attr = getattr(enum_klass, attr_name, None)
+    
+    if enum_attr is None:
+        raise ValidationError(
+            f"Invalid enum value {value} for {enum_klass.__name__}", 
+            code="invalid_enum"
+        )
+    
+    return enum_attr
+
+class Options(BaseModel):
+    """
+    Task execution configuration options that can be passed to a task or
+    task groups in pointy scripts, e.g., A[retry_attempts=3], {A->B}[retry_attempts=3].
+    """
+    
+    # Core execution options with validation
+    retry_attempts: MiniAnnotated[int, Attrib(default=0, ge=0)]
+    executor: MiniAnnotated[typing.Optional[str], Attrib(default=None)]
+    
+    # Configuration dictionaries with preformatter
+    executor_config: MiniAnnotated[
+        typing.Union[ExecutorInitializerConfig, dict],
+        Attrib(
+            default_factory=lambda: ExecutorInitializerConfig(),
+            pre_formatter=lambda val: (
+                ExecutorInitializerConfig.from_dict(val)
+                if isinstance(val, dict)
+                else val
+            ),
+        ),
+    ]
+    extras: MiniAnnotated[dict, Attrib(default_factory=dict)]
+    
+    # Execution state and control with enum preformatters
+    result_evaluation_strategy: MiniAnnotated[
+        ResultEvaluationStrategy,
+        Attrib(
+            default=ResultEvaluationStrategy.ALL_MUST_SUCCEED,
+            pre_formatter=lambda val: resolve_str_to_enum(
+                ResultEvaluationStrategy, val, use_lower_case=False
+            ),
+        ),
+    ]
+    stop_condition: MiniAnnotated[
+        typing.Union[StopCondition, None],
+        Attrib(
+            default=None,
+            pre_formatter=lambda val: val
+            and resolve_str_to_enum(StopCondition, val, use_lower_case=False)
+            or None,
+        ),
+    ]
+    bypass_event_checks: typing.Optional[bool]
+    
+    class Config:
+        disable_typecheck = False
+        disable_all_validation = False
+    
+    @classmethod
+    def from_dict(cls, options_dict: typing.Dict[str, typing.Any]) -> "Options":
+        """
+        Create Options instance from dictionary, placing unknown fields in extras.
+        
+        Args:
+            options_dict: Dictionary containing option values
+            
+        Returns:
+            Options instance with known fields populated and unknown fields in extras
+        """
+        known_fields = {field.name for field in dataclasses.fields(cls)}
+        
+        option = {}
+        for field_name, value in options_dict.items():
+            if field_name in known_fields:
+                option[field_name] = value
+            else:
+                # Place unknown fields in extras
+                if "extras" not in option:
+                    option["extras"] = {}
+                option["extras"][field_name] = value
+        
+        return cls.loads(option, _format="dict")
+
+# Usage example
+options = Options(
+    retry_attempts=3,
+    executor_config={"max_workers": 8, "thread_name_prefix": "Worker"},
+    result_evaluation_strategy="ALL_MUST_SUCCEED",  # String converted to enum
+    stop_condition="ON_FIRST_FAILURE"  # String converted to enum
+)
+
+print(options.executor_config.max_workers)  # Output: 8
+print(options.result_evaluation_strategy)  # Output: ResultEvaluationStrategy.ALL_MUST_SUCCEED
+```
+
+### Best Practices
+
+1. **Type Checking**: Always check the input type before transformation to handle various input formats gracefully
+2. **Error Handling**: Raise `ValidationError` for invalid transformations that cannot be resolved
+3. **Idempotency**: Ensure preformatters can handle already-transformed values (e.g., enum already being an enum)
+4. **Lambda Functions**: Use lambda functions for simple, inline transformations
+5. **Dedicated Functions**: Create dedicated functions for complex or reusable transformation logic
+
+### Preformatter vs Validator
+
+| Aspect | Preformatter | Validator |
+|--------|-------------|-----------|
+| Execution timing | Before validation | After validation |
+| Primary purpose | Data transformation | Data validation |
+| Type checking | Happens after | Already completed |
+| Use case | Format conversion | Business rule enforcement |
+| Return value | Transformed value | Validated/transformed value |
+
+### Combined Example
+
+Preformatters and validators work together seamlessly:
+
+```python
+def strip_whitespace(value: str) -> str:
+    """Preformatter: Remove leading/trailing whitespace."""
+    if isinstance(value, str):
+        return value.strip()
+    return value
+
+def validate_no_numbers(instance, value: str) -> str:
+    """Validator: Ensure no digits in string."""
+    if any(char.isdigit() for char in value):
+        raise ValidationError("Value cannot contain numbers")
+    return value
+
+class CleanModel(BaseModel):
+    clean_text: MiniAnnotated[
+        str,
+        Attrib(
+            pre_formatter=strip_whitespace,
+            validators=[validate_no_numbers],
+            max_length=50
+        )
+    ]
+
+# Execution order:
+# 1. Preformatter strips whitespace: "  hello  " → "hello"
+# 2. Type validation: Check if string
+# 3. Built-in validator: Check max_length
+# 4. Custom validator: Check for numbers
+
+model = CleanModel(clean_text="  hello world  ")
+print(model.clean_text)  # Output: "hello world"
+```
+
 ## Serialization
 
 ### Supported Formats
@@ -342,9 +1129,8 @@ class EventResult(BaseModel):
 For fields that are only used during initialization:
 
 ```python
+from dataclasses import InitVar
 import typing
-from pydantic_mini import BaseModel
-from pydantic_mini.typing import InitVar
 
 class DatabaseRecord(BaseModel):
     id: int
@@ -363,7 +1149,6 @@ Use `default_factory` for dynamic default values:
 ```python
 import uuid
 from datetime import datetime
-from pydantic_mini import Attrib, BaseModel, MiniAnnotated
 
 class Task(BaseModel):
     id: MiniAnnotated[str, Attrib(default_factory=lambda: str(uuid.uuid4()))]
@@ -477,11 +1262,9 @@ except ValidationError as e:
 ### E-commerce Product Example
 
 ```python
-import re
+from decimal import Decimal
 from typing import Optional, List
 from enum import Enum
-from pydantic_mini import BaseModel, Attrib, MiniAnnotated
-from pydantic_mini.exceptions import ValidationError
 
 class ProductStatus(Enum):
     ACTIVE = "active"
@@ -565,13 +1348,11 @@ except ValidationError as e:
 ### Best Practices for Error Handling
 
 ```python
-from pydantic_mini.exceptions import ValidationError
-
 def create_user_safely(user_data):
     try:
         user = User.loads(user_data, _format="dict")
         return {"success": True, "user": user}
-    except (ValidationError, TypeError) as e:
+    except ValidationError as e:
         return {"success": False, "error": str(e)}
     except Exception as e:
         return {"success": False, "error": f"Unexpected error: {e}"}
@@ -596,9 +1377,6 @@ else:
 For performance-critical scenarios, you can disable validation:
 
 ```python
-from pydantic_mini import BaseModel, Attrib, MiniAnnotated
-
-
 class FastModel(BaseModel):
     field1: str
     field2: int
@@ -653,8 +1431,6 @@ Pydantic-mini is open-source and available under the GPL License.
 - Additional built-in validators
 - Performance optimisations
 - Extended serialisation formats
-- Better error messages
-- Comprehensive test suite
 
 ---
 
