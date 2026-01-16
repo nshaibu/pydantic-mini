@@ -1,6 +1,6 @@
 # Pydantic-Mini
 
-[![Build Status](https://github.com/nshaibu/pydantic_mini/actions/workflows/python_package.yml/badge.svg)](https://github.com/nshaibu/pydantic_mini/actions)
+[![Build Status](https://github.com/nshaibu/pydantic-mini/actions/workflows/python_package.yml/badge.svg)](https://github.com/nshaibu/pydantic-mini/actions)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Status](https://img.shields.io/pypi/status/pydantic_mini.svg)](https://pypi.python.org/pypi/pydantic_mini)
 [![Latest](https://img.shields.io/pypi/v/pydantic_mini.svg)](https://pypi.python.org/pypi/pydantic_mini)
