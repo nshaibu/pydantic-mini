@@ -483,45 +483,53 @@ person = Person(name="Nafiu", school=school)
 
 ## Self References and Forward References
 
-**Limitation**: Self-referential models are not supported. When a model references itself, it is treated as a forward reference, and type validation is disabled for that field.
+`pydantic-mini` fully supports self-referential models and forward references. 
+Unlike basic dataclasses, it automatically resolves string-based type hints and recursively
+inflates nested data into model instances during initialization.
+
+### Recursive Tree Structures
+
+You can define tree-like structures by referencing the class name as a string. These are automatically resolved and validated.
 
 ```python
 from typing import Optional, List
+from pydantic_mini import BaseModel, MiniAnnotated, Attrib
 
 class TreeNode(BaseModel):
     value: int
-    # Self-reference - type validation disabled for this field
-    children: Optional[List['TreeNode']] = None
+    # Self-reference resolved at runtime
+    children: MiniAnnotated[List['TreeNode'], Attrib(default_factory=list)]
 
-# Type validation for 'children' is disabled
-# You can assign any value without type checking
-node = TreeNode(value=1, children=[{"value": 2}, {"value": 3}])
+# Automatic conversion to TreeNode instances
+# Nested dictionaries are recursively inflated
+root = TreeNode.loads({
+    "value": 1, 
+    "children": [
+        {"value": 2, "children": []}, 
+        {"value": 3, "children": [{"value": 4}]}
+    ]
+}, _format="dict")
 
-# No automatic conversion to TreeNode instances
-# No validation of nested children
+assert isinstance(root.children[0], TreeNode)
+assert root.children[1].children[0].value == 4
 ```
 
-**Workaround**: For tree-like structures, consider manual instantiation:
+### Forward References
+
+Models can reference other models defined later in the same module or in different modules.
 
 ```python
-class TreeNode(BaseModel):
-    value: int
-    children: Optional[List] = None  # Use generic List
-    
-    def add_child(self, child: 'TreeNode'):
-        """Manually manage children with validation."""
-        if self.children is None:
-            self.children = []
-        if not isinstance(child, TreeNode):
-            raise ValidationError("Child must be a TreeNode instance")
-        self.children.append(child)
+class Parent(BaseModel):
+    name: str
+    # 'Child' is defined below but will be resolved successfully
+    first_born: MiniAnnotated["Child", Attrib()]
 
-# Manual tree construction
-root = TreeNode(value=1)
-child1 = TreeNode(value=2)
-child2 = TreeNode(value=3)
-root.add_child(child1)
-root.add_child(child2)
+class Child(BaseModel):
+    age: int
+
+# Full validation and inflation even with forward references
+p = Parent.loads({"name": "John", "first_born": {"age": 10}}, _format="dict")
+assert isinstance(p.first_born, Child)
 ```
 
 ### Optional Nested Models
@@ -1423,8 +1431,6 @@ Pydantic-mini is open-source and available under the GPL License.
 - Additional built-in validators
 - Performance optimisations
 - Extended serialisation formats
-- Better error messages
-- Comprehensive test suite
 
 ---
 

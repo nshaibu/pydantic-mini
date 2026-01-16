@@ -4,6 +4,7 @@ import logging
 import sys
 import types
 import typing
+import inspect
 import collections
 from dataclasses import MISSING, Field, InitVar
 
@@ -33,6 +34,9 @@ __all__ = (
     "is_class_var_type",
     "get_origin",
     "get_args",
+    "get_forward_type",
+    "resolve_annotations",
+    "get_type_hints",
 )
 
 logger = logging.getLogger(__name__)
@@ -448,6 +452,45 @@ def get_type(typ):
         return None
 
 
+def get_type_hints(
+    typ: typing.Any,
+    globalns: typing.Optional[typing.Dict[str, typing.Any]] = None,
+    localns: typing.Optional[typing.Dict[str, typing.Any]] = None,
+    include_extras: bool = False,
+) -> typing.Dict[str, typing.Any]:
+    if sys.version_info < (3, 9):
+        return typing.get_type_hints(typ, globalns, localns)
+    else:
+        return typing.get_type_hints(
+            typ, globalns, localns, include_extras=include_extras
+        )
+
+
+def get_mini_annotation_hints(cls, global_ns=None, local_ns=None):
+    try:
+        hints = get_type_hints(
+            cls, globalns=global_ns, localns=local_ns, include_extras=True
+        )
+
+        if sys.version_info >= (3, 14):
+            # Check if 3.14 stripped our MiniAnnotated/Annotated wrapper
+            # If hints contain 'str' instead of 'Annotated[str, ...]', we must fall back
+            first_hint = next(iter(hints.values()), None)
+            if first_hint and typing.get_origin(first_hint) is not typing.Annotated:
+                return inspect.get_annotations(cls, eval_str=True)
+
+        return hints
+    except (TypeError, NameError):
+        return getattr(cls, "__annotations__", {})
+
+
+def resolve_annotations(
+    cls: type, global_ns: typing.Any = None, local_ns: typing.Any = None
+) -> typing.Dict[str, typing.Any]:
+
+    return get_mini_annotation_hints(cls, global_ns=global_ns, local_ns=local_ns)
+
+
 def is_optional_type(typ):
     if hasattr(typ, "__origin__") and typ.__origin__ is typing.Union:
         return NoneType in typ.__args__
@@ -485,7 +528,7 @@ def get_forward_type(typ):
             try:
                 return typ.__arg__
             except AttributeError:
-                return getattr(typ, '__forward_arg__', typing.Any)
+                return getattr(typ, "__forward_arg__", typing.Any)
         else:
             return typ.__forward_arg__
 
@@ -529,7 +572,8 @@ class MiniAnnotated:
         typ = params[0]
 
         actual_typ = get_type(typ)
-        if actual_typ is None:
+        forward_typ = get_forward_type(typ)
+        if actual_typ is None and forward_typ is None:
             raise ValueError("'{}' is not a type".format(params[0]))
 
         query = params[1]

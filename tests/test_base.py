@@ -349,7 +349,7 @@ class TestBase(unittest.TestCase):
     def test_union_test_annotation_validator_types_in_union(self):
         class Person(BaseModel):
             name: str
-            location: typing.Union[str, int]
+            location: typing.Union[int, str]
 
         person = Person(name="nafiu", location="kumasi")
         self.assertEqual(person.name, "nafiu")
@@ -360,7 +360,7 @@ class TestBase(unittest.TestCase):
         self.assertEqual(person.location, 12)
 
         with self.assertRaises(TypeError):
-            Person(name="nafiu", location=54.554)
+            Person(name="nafiu", location=54.4456)
 
     def test_dataclass_composition_association(self):
         class School(BaseModel):

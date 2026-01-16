@@ -93,7 +93,7 @@ def init_class(
     try:
         constructor_kwargs = get_function_call_args(klass.__init__, param_dict)
     except ValueError as e:
-        raise ValueError(f"Failed to analyze constructor for {klass.__name__}: {e}")
+        raise ValueError(f"Failed to analyse constructor for {klass.__name__}: {e}")
 
     extra_params = {
         key: value for key, value in param_dict.items() if key not in constructor_kwargs
