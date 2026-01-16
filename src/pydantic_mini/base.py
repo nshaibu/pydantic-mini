@@ -20,7 +20,6 @@ from .typing import (
     is_class_var_type,
     ModelConfigWrapper,
     resolve_annotations,
-    get_type_hints,
 )
 from .utils import init_class
 from .exceptions import ValidationError
@@ -205,22 +204,6 @@ class SchemaMeta(type):
                         raise TypeError(
                             f"Field '{field_name}' must be annotated with a real type. {annotation} is not a type"
                         )
-                    else:
-                        # import pdb;pdb.set_trace()
-                        # try:
-                        #     forward_annotation = (
-                        #         typing.ForwardRef(forward_annotation)
-                        #         if isinstance(forward_annotation, str)
-                        #         else forward_annotation
-                        #     )
-                        #     annotation = evaluate_forward_ref(
-                        #         forward_annotation,
-                        #         global_ns=global_ns,
-                        #         local_ns=locals(),
-                        #     )
-                        # except (TypeError, NameError):
-                        #     annotation = typing.Any
-                        pass
 
                 annotation = MiniAnnotated[
                     annotation,
