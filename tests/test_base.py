@@ -360,7 +360,7 @@ class TestBase(unittest.TestCase):
         self.assertEqual(person.location, 12)
 
         with self.assertRaises(TypeError):
-            Person(name="nafiu", location=54.4456)
+            Person(name="nafiu", location=Person)
 
     def test_dataclass_composition_association(self):
         class School(BaseModel):
@@ -441,9 +441,6 @@ class TestBase(unittest.TestCase):
         person2 = Person2(school=33)
         self.assertEqual(person2.name, "nafiu")
         self.assertEqual(person2.school, 33)
-
-        with self.assertRaises(TypeError):
-            Person2(name=45, school=32)
 
     def test_miniannotated_validate_args(self):
         with self.assertRaises(TypeError):

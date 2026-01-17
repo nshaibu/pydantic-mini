@@ -385,6 +385,13 @@ class BaseModel(PreventOverridingMixin, metaclass=SchemaMeta):
                         setattr(self, fd.name, actual_type(value))
                     except ValueError:
                         pass
+            # Primitives (Last-ditch coercion for strings to int/float)
+            elif is_builtin_type(actual_type):
+                if value is not None and not isinstance(value, actual_type):
+                    try:
+                        setattr(self, fd.name, actual_type(value))
+                    except (ValueError, TypeError):
+                        pass
 
     def _field_type_validator(self, fd: Field, resolved_field_type: typing.Any) -> None:
         value = getattr(self, fd.name, None)
