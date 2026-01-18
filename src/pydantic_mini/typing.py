@@ -8,6 +8,11 @@ import inspect
 import collections
 from dataclasses import MISSING, Field, InitVar
 
+if sys.version_info >= (3, 11):
+    from typing import dataclass_transform
+else:
+    from typing_extensions import dataclass_transform
+
 if sys.version_info < (3, 9):
     from typing_extensions import Annotated, get_origin, get_args, ForwardRef
 else:
@@ -37,6 +42,7 @@ __all__ = (
     "get_forward_type",
     "resolve_annotations",
     "get_type_hints",
+    "dataclass_transform",
 )
 
 logger = logging.getLogger(__name__)

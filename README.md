@@ -17,9 +17,11 @@
 - [API Reference](#api-reference)
 - [Validation](#validation)
    - [Nested Validation](#nested-validation)
-   - [Self References and Forward References](#self-References-and-forward-references)
+   - [Self-References and Forward References](#self-References-and-forward-references)
 - [Preformatters](#preformatters)
 - [Serialization](#serialization)
+  - [Model Formatters](#model-formatters)
+    - [Custom Formatters](#custom-formatters)
 - [Configuration](#configuration)
 - [Advanced Usage](#advanced-usage)
 - [Examples](#examples)
@@ -1088,13 +1090,60 @@ for person in people:
     print(person)
 ```
 
+## Model Formatters
+
+Model formatters in pydantic-mini define how a model is loaded from and dumped to
+external representations such as `JSON`, `dicts`, `CSV`, or custom formats like `YAML` or `TOML`.
+
+They operate at the model boundary and are responsible for full-model serialization and deserialization.
+
+Model formatters are used by:
+
+```
+BaseModel.loads(data, _format=...) → decode / read
+
+BaseModel.dump(_format=...) → encode / write
+```
+
 ### Custom Formatters
 
 To create a custom formatter, you need to inherit from `BaseModelFormatter` and implement the `encode` (reading data) and `decode` (writing data) methods.
 
-#### 1.Creating a YAML Formatter
+#### Formatter Base Classes
 
-Here is an example of how to add YAML support using the PyYAML library.
+##### BaseModelFormatter
+- Low-level base class for custom formats
+- Use only for non-dict-like formats or full control
+
+##### DictModelFormatter (recommended)
+- Handles recursive model inflation and nested BaseModel instances
+- Supports lists and primitive type handling
+- You only need to convert external format ↔ dict/list
+
+#### Required Interface
+`format_name`
+```python
+format_name = "yaml"
+# or with aliases
+format_name = ("yaml", "yml")
+```
+- Matched against the _format parameter
+
+`encode(self, _type, obj)`
+- Used when loading data into a model
+- `_type`: target BaseModel class
+- `obj`: raw external input (usually string)
+- Returns dict/list suitable for model inflation
+
+`decode(self, instance)`
+- Used when dumping a model
+- `instance`: BaseModel instance or nested data
+- Returns serialized output (usually string)
+
+#### Example
+#### 1. Creating a YAML Formatter
+
+Here is an example of how to add YAML support using the `PyYAML` library.
 
 ```python
 import yaml

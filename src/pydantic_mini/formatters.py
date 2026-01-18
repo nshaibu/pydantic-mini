@@ -64,7 +64,7 @@ class DictModelFormatter(BaseModelFormatter):
         self, _type: typing.Type["BaseModel"], obj: typing.Dict[str, typing.Any]
     ) -> "BaseModel":
         instance = init_class(_type, obj)
-        # force execute post init again for normal field validation
+        # force executes post-init again for normal field validation
         instance.__post_init__()
         return instance
 

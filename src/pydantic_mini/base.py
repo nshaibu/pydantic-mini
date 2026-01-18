@@ -20,6 +20,7 @@ from .typing import (
     is_class_var_type,
     ModelConfigWrapper,
     resolve_annotations,
+    dataclass_transform,
 )
 from .utils import init_class
 from .exceptions import ValidationError
@@ -257,6 +258,13 @@ class PreventOverridingMixin:
         super().__init_subclass__(**kwargs)
 
 
+@dataclass_transform(
+    eq_default=True,
+    order_default=False,
+    kw_only_default=False,
+    frozen_default=False,
+    field_specifiers=(MiniAnnotated, Attrib),
+)
 class BaseModel(PreventOverridingMixin, metaclass=SchemaMeta):
 
     def __model_init__(self, *args, **kwargs) -> None:
