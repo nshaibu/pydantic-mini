@@ -70,6 +70,7 @@ _DATACLASS_CONFIG_FIELD: typing.List[str] = [
 ]
 
 _NON_DATACLASS_CONFIG_FIELD: typing.List[str] = [
+    "strict_mode",
     "disable_typecheck",
     "disable_all_validation",
 ]
@@ -82,6 +83,7 @@ class ModelConfigWrapper:
     order: bool = False
     unsafe_hash: bool = False
     frozen: bool = False
+    strict_mode: bool = False
     disable_typecheck: bool = False
     disable_all_validation: bool = False
 

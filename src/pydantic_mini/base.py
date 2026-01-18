@@ -281,6 +281,7 @@ class BaseModel(PreventOverridingMixin, metaclass=SchemaMeta):
         resolved_hints = _RESOLVED_TYPE_CACHE[cls]
 
         config = getattr(self, PYDANTIC_MINI_EXTRA_MODEL_CONFIG, {})
+        strict_mode = config.get("strict_mode", False)
         disable_typecheck = config.get("disable_typecheck", False)
         disable_all_validation = config.get("disable_all_validation", False)
 
@@ -300,7 +301,8 @@ class BaseModel(PreventOverridingMixin, metaclass=SchemaMeta):
             if not disable_all_validation:
                 # no type validation for Any field type and type checking is not disabled
                 if resolved_field_type is not typing.Any and not disable_typecheck:
-                    self._inner_schema_value_preprocessor(fd, resolved_field_type)
+                    if not strict_mode:
+                        self._inner_schema_value_preprocessor(fd, resolved_field_type)
                     self._field_type_validator(fd, resolved_field_type)
                 else:
                     # run other field validators when type checking is disabled
