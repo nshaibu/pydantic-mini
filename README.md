@@ -20,6 +20,8 @@
    - [Self-References and Forward References](#self-References-and-forward-references)
 - [Preformatters](#preformatters)
 - [Serialization](#serialization)
+  - [Model Formatters](#model-formatters)
+    - [Custom Formatters](#custom-formatters)
 - [Configuration](#configuration)
 - [Advanced Usage](#advanced-usage)
 - [Examples](#examples)
