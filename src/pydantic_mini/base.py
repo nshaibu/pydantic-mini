@@ -263,7 +263,7 @@ class PreventOverridingMixin:
     order_default=False,
     kw_only_default=False,
     frozen_default=False,
-    field_specifiers=(MiniAnnotated, Attrib)
+    field_specifiers=(MiniAnnotated, Attrib),
 )
 class BaseModel(PreventOverridingMixin, metaclass=SchemaMeta):
 
