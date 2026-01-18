@@ -20,6 +20,7 @@ from .typing import (
     is_class_var_type,
     ModelConfigWrapper,
     resolve_annotations,
+    dataclass_transform
 )
 from .utils import init_class
 from .exceptions import ValidationError
@@ -32,6 +33,7 @@ PYDANTIC_MINI_EXTRA_MODEL_CONFIG = "__pydantic_mini_extra_config__"
 _RESOLVED_TYPE_CACHE = {}
 
 
+@dataclass_transform()
 class SchemaMeta(type):
 
     def __new__(cls, name, bases, attrs, **kwargs):
