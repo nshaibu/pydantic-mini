@@ -3,13 +3,13 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 [project]
 name = "pydantic_mini"
-version="1.1.9"
+version="1.2.0"
 requires-python = ">=3.8"
 authors = [
     {name = "nshaibu", email = "nafiushaibu1@gmail.com"},
 ]
 description="Dataclass with validation"
-keywords=["pydantic-mini", "Schema", "ORM", "dataclass", "pydantic", "data-validation", "simple", "dataclass with vaidation", "Data Serialisation", "Serialisation"]
+keywords=["pydantic-mini", "pydantic_mini", "Schema", "ORM", "dataclass", "pydantic", "data-validation", "simple", "dataclass with vaidation", "Data Serialisation", "Serialisation"]
 readme = "README.md"
 license = { file = "LICENSE" }
 dependencies = [
@@ -19,7 +19,7 @@ classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Environment :: Console",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: Apache Software License",
+    "License :: OSI Approved :: GPL-3.0 License",
     "Operating System :: OS Independent",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",

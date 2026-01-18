@@ -278,7 +278,6 @@ class BaseModel(PreventOverridingMixin, metaclass=SchemaMeta):
                 _RESOLVED_TYPE_CACHE[cls] = resolve_annotations(
                     cls,
                     global_ns=getattr(inspect.getmodule(cls), "__dict__", None),
-                    local_ns=globals(),
                 )
             except NameError:
                 # If it fails, the class is likely defined in a local scope (like a test)
