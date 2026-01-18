@@ -1192,6 +1192,7 @@ class EventResult(BaseModel):
 | `order` | `bool` | `False` | Enables ordering methods (`__lt__`, `__gt__`, etc.) |
 | `unsafe_hash` | `bool` | `False` | Allows an unsafe implementation of `__hash__` |
 | `frozen` | `bool` | `False` | Makes the dataclass instances immutable |
+| `strict_mode` | `bool` | `False` | Disable or enable automatic type coercion |
 | `disable_typecheck` | `bool` | `False` | Disable runtime type checking in models |
 | `disable_all_validation` | `bool` | `False` | Disable all validation logic (type + custom rules) |
 

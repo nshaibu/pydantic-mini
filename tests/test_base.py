@@ -533,3 +533,19 @@ class TestBase(unittest.TestCase):
 
         with self.assertRaises(TypeError):
             self.DisabledTypeCheckValidationClass(email="nafiu@ex.com", value="me")
+
+    def test_coercion_doesnt_work_in_strict_mode(self):
+        class Location(BaseModel):
+            name: str
+
+        class Person(BaseModel):
+            name: str
+            location: Location
+
+            class Config:
+                strict_mode = True
+
+        with self.assertRaises(TypeError):
+            Person.loads(
+                {"name": "nafiu", "location": {"name": "kumasi"}}, _format="dict"
+            )
