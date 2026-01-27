@@ -25,6 +25,7 @@ if typing.TYPE_CHECKING:
     from .fields import MiniField
 
 __all__ = (
+    "Annotated",
     "MiniAnnotated",
     "Attrib",
     "get_type",

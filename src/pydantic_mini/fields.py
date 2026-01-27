@@ -51,7 +51,7 @@ class MiniField:
     def __init__(
         self,
         name: str,
-        mini_annotated: typing.Type[Annotated],
+        mini_annotated: Annotated,
         dc_field_obj: typing.Optional[Field] = None,
     ):
         if not is_mini_annotated(mini_annotated):
