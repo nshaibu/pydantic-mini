@@ -1,29 +1,26 @@
 import typing
 import keyword
 import inspect
-from enum import Enum
 from collections import OrderedDict
-from dataclasses import dataclass, fields, Field, field, MISSING, is_dataclass
+from dataclasses import dataclass, Field, field, MISSING
 from .formatters import BaseModelFormatter
 from .typing import (
     is_mini_annotated,
     get_type,
-    get_origin,
     get_args,
     get_forward_type,
     MiniAnnotated,
     Attrib,
-    is_collection,
     is_optional_type,
-    is_builtin_type,
     is_initvar_type,
     is_class_var_type,
     ModelConfigWrapper,
     resolve_annotations,
     dataclass_transform,
+    ValidatorType,
+    PreFormatType,
 )
-from .utils import init_class
-from .exceptions import ValidationError
+from .fields import MiniField
 
 
 __all__ = ("BaseModel",)
@@ -42,7 +39,13 @@ class SchemaMeta(type):
 
         new_attrs = cls.build_class_namespace(name, attrs)
 
-        cls._prepare_model_fields(new_attrs)
+        validators, preformatters = cls._collect_field_callbacks(new_attrs, bases)
+
+        # Store them in the namespace for later access
+        new_attrs["__validators__"] = validators
+        new_attrs["__preformatters__"] = preformatters
+
+        cls._prepare_model_fields(new_attrs, validators, preformatters)
 
         new_class = super().__new__(cls, name, bases, new_attrs, **kwargs)
 
@@ -78,7 +81,61 @@ class SchemaMeta(type):
         return new_attrs
 
     @classmethod
-    def get_non_annotated_fields(cls, attrs, exclude: typing.Tuple[typing.Any] = None):
+    def _collect_field_callbacks(
+        cls,
+        attrs: typing.Dict[str, typing.Any],
+        bases: typing.Tuple[type, ...],
+    ) -> typing.Tuple[
+        typing.Dict[str, typing.List[ValidatorType]],
+        typing.Dict[str, typing.List[PreFormatType]],
+    ]:
+        """
+        Collect all validators and preformatters from the class namespace.
+        This runs once during class creation - zero-runtime overhead.
+
+        Returns:
+            Tuple of (validators_dict, preformatters_dict)
+        """
+        validators: typing.Dict[str, typing.List[ValidatorType]] = {}
+        preformatters: typing.Dict[str, typing.List[PreFormatType]] = {}
+
+        for attr_name, attr_value in attrs.items():
+            if not callable(attr_value):
+                continue
+
+            if isinstance(attr_value, (classmethod, staticmethod, property)):
+                continue
+
+            if attr_name.startswith("__"):
+                continue
+
+            attr_value = typing.cast(
+                typing.Union[ValidatorType, PreFormatType], attr_value
+            )
+
+            if hasattr(attr_value, "_validator_fields"):
+                for field_name in attr_value._validator_fields:  # type: ignore[attr-defined]
+                    validators.setdefault(field_name, []).append(attr_value)
+
+            if hasattr(attr_value, "_preformat_fields"):
+                for field_name in attr_value._preformat_fields:  # type: ignore[attr-defined]
+                    preformatters.setdefault(field_name, []).append(attr_value)
+
+        for base in bases:
+            if hasattr(base, "__validators__"):
+                for field_name, field_validators in base.__validators__.items():
+                    validators.setdefault(field_name, []).extend(field_validators)
+
+            if hasattr(base, "__preformatters__"):
+                for field_name, field_preformatters in base.__preformatters__.items():
+                    preformatters.setdefault(field_name, []).extend(field_preformatters)
+
+        return validators, preformatters
+
+    @classmethod
+    def get_non_annotated_fields(
+        cls, attrs, exclude: typing.Optional[typing.Tuple[typing.Any]] = None
+    ):
         if exclude is None:
             exclude = []
 
@@ -151,10 +208,26 @@ class SchemaMeta(type):
                 return type(value)
         return typing.Any
 
+    @staticmethod
+    def coerce_value_to_dataclass_field(
+        field_name: str, attrs: typing.Dict[str, typing.Any], default_value=MISSING
+    ) -> Field:
+        value = attrs.get(field_name, default_value)
+        if not isinstance(value, Field):
+            if value is None:
+                value = field(default=default_value)
+            elif default_value is MISSING:
+                value = field()
+            else:
+                value = field(default=default_value)
+        return value
+
     @classmethod
     def _prepare_model_fields(
         cls,
         attrs: typing.Dict[str, typing.Any],
+        validators: typing.Dict[str, typing.List[ValidatorType]],
+        preformatters: typing.Dict[str, typing.List[PreFormatType]],
     ) -> None:
         ann_with_defaults = OrderedDict()
         ann_without_defaults = OrderedDict()
@@ -187,11 +260,18 @@ class SchemaMeta(type):
                 # let's ignore init-var and class-var, dataclass will take care of them
                 # typing.Any does not require any type Validation
                 ann_with_defaults[field_name] = annotation
-                if field_name in attrs:
-                    value = attrs[field_name]
-                    attrs[field_name] = (
-                        value.default if isinstance(value, Field) else value
+                if annotation is not typing.Any:
+                    value_field = cls.coerce_value_to_dataclass_field(
+                        field_name, attrs, value
                     )
+                    actual_type = getattr(annotation, "type", get_args(annotation))
+                    if isinstance(actual_type, (tuple, list)):
+                        if actual_type:
+                            actual_type = actual_type[0]
+                        else:
+                            actual_type = object
+                    annotation = MiniAnnotated[actual_type, Attrib()]
+                    attrs[field_name] = MiniField(field_name, annotation, value_field)
                 continue
 
             if not is_mini_annotated(annotation):
@@ -200,7 +280,7 @@ class SchemaMeta(type):
                     forward_annotation = get_forward_type(annotation)
                     if forward_annotation is None:
                         raise TypeError(
-                            f"Field '{field_name}' must be annotated with a real type. {annotation} is not a type"
+                            f"Field '{field_name!r}' must be annotated with a real type. {annotation} is not a type"
                         )
 
                 annotation = MiniAnnotated[
@@ -237,6 +317,27 @@ class SchemaMeta(type):
             else:
                 ann_without_defaults[field_name] = annotation
 
+            default_value = attrs.get(field_name, value)
+            if not isinstance(default_value, Field):
+                if default_value is None:
+                    default_value = field(default=default_value)
+                elif default_value is MISSING:
+                    default_value = field()
+                else:
+                    default_value = field(default=default_value)
+
+            mini_field = MiniField(field_name, annotation, default_value)
+
+            if field_name in validators:
+                for validator_func in validators[field_name]:
+                    mini_field.add_validator(validator_func)
+
+            if field_name in preformatters:
+                for preformat_func in preformatters[field_name]:
+                    mini_field.add_preformat_callback(preformat_func)
+
+            attrs[field_name] = mini_field
+
         ann_without_defaults.update(ann_with_defaults)
 
         if ann_without_defaults:
@@ -245,7 +346,7 @@ class SchemaMeta(type):
 
 class PreventOverridingMixin:
 
-    _protect = ["__init__", "__post_init__"]
+    _protect = ["__init__"]
 
     def __init_subclass__(cls, **kwargs):
         if cls.__name__ != "BaseModel":
@@ -267,208 +368,13 @@ class PreventOverridingMixin:
 )
 class BaseModel(PreventOverridingMixin, metaclass=SchemaMeta):
 
-    def __model_init__(self, *args, **kwargs) -> None:
-        pass
-
-    def __post_init__(self, *args, **kwargs) -> None:
-        cls = self.__class__
-
-        if cls not in _RESOLVED_TYPE_CACHE:
-            try:
-                _RESOLVED_TYPE_CACHE[cls] = resolve_annotations(
-                    cls,
-                    global_ns=getattr(inspect.getmodule(cls), "__dict__", None),
-                )
-            except NameError:
-                # If it fails, the class is likely defined in a local scope (like a test)
-                # We can't easily get the function's locals, so we fallback
-                # or try to use the class's own namespace.
-                _RESOLVED_TYPE_CACHE[cls] = getattr(cls, "__annotations__", {})
-
-        resolved_hints = _RESOLVED_TYPE_CACHE[cls]
-
-        config = getattr(self, PYDANTIC_MINI_EXTRA_MODEL_CONFIG, {})
-        strict_mode = config.get("strict_mode", False)
-        disable_typecheck = config.get("disable_typecheck", False)
-        disable_all_validation = config.get("disable_all_validation", False)
-
-        for fd in fields(self):
-            resolved_field_type = resolved_hints.get(fd.name, fd.type)
-
-            query: Attrib = (
-                hasattr(resolved_field_type, "__metadata__")
-                and resolved_field_type.__metadata__[0]
-                or None
-            )
-
-            if query:
-                # execute the pre-formatters for all the fields
-                query.execute_pre_formatter(self, fd)
-
-            if not disable_all_validation:
-                # no type validation for Any field type and type checking is not disabled
-                if resolved_field_type is not typing.Any and not disable_typecheck:
-                    if not strict_mode:
-                        self._inner_schema_value_preprocessor(fd, resolved_field_type)
-                    self._field_type_validator(fd, resolved_field_type)
-                else:
-                    # run other field validators when type checking is disabled
-                    if query:
-                        value = getattr(self, fd.name, None)
-                        query.execute_field_validators(self, fd)
-                        query.validate(value, fd.name)
-                try:
-                    result = self.validate(getattr(self, fd.name), fd)
-                    if result is not None:
-                        setattr(self, fd.name, result)
-                except NotImplementedError:
-                    pass
-
-                method = getattr(self, f"validate_{fd.name}", None)
-                if method and callable(method):
-                    result = method(getattr(self, fd.name), fd)
-                    if result is not None:
-                        setattr(self, fd.name, result)
-
-        self.__model_init__(*args, **kwargs)
-
-    def _inner_schema_value_preprocessor(
-        self, fd: Field, resolved_field_type: typing.Any
-    ) -> None:
-        value = getattr(self, fd.name)
-
-        actual_annotated_type = resolved_field_type.__args__[0]
-        type_args = (
-            hasattr(actual_annotated_type, "__args__")
-            and actual_annotated_type.__args__
-            or None
-        )
-
-        status, actual_type = is_collection(actual_annotated_type)
-        if status:
-            if type_args and isinstance(value, (dict, list)):
-                value = value if isinstance(value, list) else [value]
-                inner_type: type = type_args[0]
-
-                if is_builtin_type(inner_type):
-                    setattr(
-                        self, fd.name, actual_type([inner_type(val) for val in value])
-                    )
-                elif (
-                    (isinstance(inner_type, type) and issubclass(inner_type, BaseModel))
-                    or is_dataclass(inner_type)
-                    or inspect.isclass(inner_type)
-                ):
-                    setattr(
-                        self,
-                        fd.name,
-                        actual_type(
-                            [
-                                (
-                                    init_class(inner_type, val)
-                                    if isinstance(val, dict)
-                                    else val
-                                )
-                                for val in value
-                            ]
-                        ),
-                    )
-        elif actual_annotated_type:
-            actual_type = get_type(actual_annotated_type)
-
-            if isinstance(value, dict):
-                if (
-                    (
-                        isinstance(actual_type, type)
-                        and isinstance(actual_type, BaseModel)
-                    )
-                    or is_dataclass(actual_type)
-                    or inspect.isclass(actual_type)
-                ):
-                    setattr(self, fd.name, init_class(actual_type, value))
-
-            # Enums (Coerce string/int to Enum member)
-            elif isinstance(actual_type, type) and issubclass(actual_type, Enum):
-                if value is not None and not isinstance(value, actual_type):
-                    try:
-                        setattr(self, fd.name, actual_type(value))
-                    except ValueError:
-                        pass
-            # Primitives (Last-ditch coercion for strings to int/float)
-            elif is_builtin_type(actual_type):
-                if value is not None and not isinstance(value, actual_type):
-                    try:
-                        setattr(self, fd.name, actual_type(value))
-                    except (ValueError, TypeError):
-                        pass
-
-    def _field_type_validator(self, fd: Field, resolved_field_type: typing.Any) -> None:
-        value = getattr(self, fd.name, None)
-        field_type = resolved_field_type
-
-        if not is_mini_annotated(field_type):
-            raise ValidationError(
-                "Field '{}' should be annotated with 'MiniAnnotated'.".format(fd.name),
-                params={"field": fd.name, "annotation": field_type},
-            )
-
-        query = field_type.__metadata__[0]
-
-        if not query.has_default() and value is None:
-            raise ValidationError(
-                "Field '{}' should not be empty.".format(fd.name),
-                params={"field": fd.name, "annotation": field_type},
-            )
-
-        query.execute_field_validators(self, fd)
-
-        expected_annotated_type = (
-            hasattr(field_type, "__args__") and field_type.__args__[0] or None
-        )
-        actual_expected_type = (
-            expected_annotated_type
-            and self.type_can_be_validated(expected_annotated_type)
-            or None
-        )
-
-        if expected_annotated_type and typing.Any not in actual_expected_type:
-            is_type_collection, _ = is_collection(expected_annotated_type)
-            if is_type_collection:
-                actual_type = expected_annotated_type.__args__[0]
-                if actual_type and actual_type is not typing.Any:
-                    if any([not isinstance(val, actual_type) for val in value]):
-                        raise TypeError(
-                            "Expected a collection of values of type '{}'. Values: {} ".format(
-                                actual_type, value
-                            )
-                        )
-            elif not isinstance(value, actual_expected_type):
-                raise TypeError(
-                    f"Field '{fd.name}' should be of type {actual_expected_type}, "
-                    f"but got {type(value).__name__}."
-                )
-
-        query.validate(value, fd.name)
-
-    @staticmethod
-    def type_can_be_validated(typ) -> typing.Optional[typing.Tuple]:
-        origin = get_origin(typ)
-        if origin is typing.Union:
-            type_args = get_args(typ)
-            if type_args:
-                return tuple([get_type(_type) for _type in type_args])
-        else:
-            return (get_type(typ),)
-
-        return None
+    # These are populated by the metaclass
+    __validators__: typing.Dict[str, typing.List[ValidatorType]]
+    __preformatters__: typing.Dict[str, typing.List[PreFormatType]]
 
     @staticmethod
     def get_formatter_by_name(name: str) -> BaseModelFormatter:
         return BaseModelFormatter.get_formatter(format_name=name)
-
-    def validate(self, value: typing.Any, data_field: Field):
-        """Implement this method to validate all fields"""
-        raise NotImplementedError
 
     @classmethod
     def loads(

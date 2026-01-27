@@ -106,7 +106,7 @@ def init_class(
     try:
         instance = klass(**constructor_kwargs)
     except TypeError as e:
-        raise TypeError(f"Failed to instantiate {klass.__name__}: {e}")
+        raise TypeError(f"Failed to instantiate {klass.__name__}: {e}") from e
 
     if allow_extra_attrs and extra_params:
         for key, value in extra_params.items():
