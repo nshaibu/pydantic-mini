@@ -65,7 +65,7 @@ class DictModelFormatter(BaseModelFormatter):
     ) -> "BaseModel":
         instance = init_class(_type, obj)
         # force executes post-init again for normal field validation
-        instance.__post_init__()
+        # instance.__post_init__()
         return instance
 
     def encode(self, _type: typing.Type["BaseModel"], obj: D) -> T:

@@ -6,7 +6,7 @@ import types
 import typing
 import inspect
 import collections
-from dataclasses import MISSING, Field, InitVar
+from dataclasses import MISSING, InitVar
 
 if sys.version_info >= (3, 11):
     from typing import dataclass_transform
@@ -22,8 +22,10 @@ from .exceptions import ValidationError
 
 if typing.TYPE_CHECKING:
     from .base import BaseModel
+    from .fields import MiniField
 
 __all__ = (
+    "Annotated",
     "MiniAnnotated",
     "Attrib",
     "get_type",
@@ -43,9 +45,16 @@ __all__ = (
     "resolve_annotations",
     "get_type_hints",
     "dataclass_transform",
+    "ValidatorType",
+    "PreFormatType",
 )
 
 logger = logging.getLogger(__name__)
+
+
+ValidatorType = typing.Callable[[typing.Any], None]
+
+PreFormatType = typing.Callable[["BaseModel", typing.Any], typing.Any]
 
 
 # backward compatibility
@@ -136,7 +145,7 @@ class Attrib:
         self,
         default: typing.Optional[typing.Any] = MISSING,
         default_factory: typing.Optional[typing.Callable[[], typing.Any]] = MISSING,
-        pre_formatter: typing.Callable[[typing.Any], typing.Any] = MISSING,
+        pre_formatter: typing.Union[PreFormatType, MISSING] = MISSING,
         required: bool = False,
         help_text: typing.Optional[str] = None,
         allow_none: bool = False,
@@ -147,9 +156,7 @@ class Attrib:
         min_length: typing.Optional[int] = None,
         max_length: typing.Optional[int] = None,
         pattern: typing.Optional[typing.Union[str, typing.Pattern]] = None,
-        validators: typing.Optional[
-            typing.List[typing.Callable[[typing.Any], typing.Any]]
-        ] = MISSING,
+        validators: typing.Union[typing.List[ValidatorType], MISSING] = MISSING,
     ):
         """
         Represents a data attribute with optional validation, default values, and formatting logic.
@@ -222,22 +229,25 @@ class Attrib:
             return self.default_factory()
         return MISSING
 
-    def execute_pre_formatter(self, instance, fd: Field) -> None:
-        if self.has_pre_formatter():
-            value = getattr(instance, fd.name, None)
-            try:
-                value = self.pre_formatter(value)
-                if self.allow_none and value is None:
-                    setattr(instance, fd.name, None)
-                else:
-                    setattr(instance, fd.name, value)
-            except Exception as exc:
-                logger.error(
-                    "Pre-formatter error for %s : %s", (fd.name, exc), exc_info=exc
-                )
-                raise RuntimeError(
-                    f"Error occurred while executing the pre-formatter for field: {fd.name}"
-                ) from exc
+    # def execute_pre_formatter(
+    #     self, instance, value: typing.Any, mini_field: "MiniField"
+    # ) -> None:
+    #     if self.has_pre_formatter():
+    #         try:
+    #             value = self.pre_formatter(value)
+    #             if self.allow_none and value is None:
+    #                 mini_field.set_field_value(instance, None)
+    #             else:
+    #                 mini_field.set_field_value(instance, value)
+    #         except Exception as exc:
+    #             logger.error(
+    #                 "Pre-formatter error for %s : %s",
+    #                 (mini_field.name, exc),
+    #                 exc_info=exc,
+    #             )
+    #             raise RuntimeError(
+    #                 f"Error occurred while executing the pre-formatter for field: {mini_field.name}"
+    #             ) from exc
 
     def validate(self, value: typing.Any, field_name: str) -> typing.Optional[bool]:
         value = value or self._get_default()
@@ -263,14 +273,10 @@ class Attrib:
             validator(value)
         return True
 
-    def execute_field_validators(self, instance: "BaseModel", fd: Field) -> None:
+    def execute_field_validators(self, value: typing, instance: "BaseModel") -> None:
         for validator in self._validators:
             try:
-                result = validator(instance, getattr(instance, fd.name))
-                if result is not None:
-                    setattr(instance, fd.name, result)
-                elif self.allow_none:
-                    setattr(instance, fd.name, None)
+                validator(instance, value)
             except Exception as e:
                 if isinstance(e, ValidationError):
                     raise
