@@ -26,7 +26,7 @@ def measure_peak(fn, rounds=10_000):
 def test_memory_flat_models(data):
     print("\nFlat model peak memory (bytes)")
     print("dataclass     :", measure_peak(lambda: UserDC(**data)))
-    print("pydantic-mini :", measure_peak(lambda: UserMini(**data)))
+    print("formax :", measure_peak(lambda: UserMini(**data)))
 
 
 def test_memory_nested_models(nested_data):
@@ -41,7 +41,7 @@ def test_memory_nested_models(nested_data):
             )
         ),
     )
-    print("pydantic-mini :", measure_peak(lambda: UserNestedMini(**nested_data)))
+    print("formax :", measure_peak(lambda: UserNestedMini(**nested_data)))
 
 
 def test_memory_json(data):
@@ -49,6 +49,6 @@ def test_memory_json(data):
 
     print("\nJSON parsing peak memory (bytes)")
     print(
-        "pydantic-mini :",
+        "formax :",
         measure_peak(lambda: UserMini.loads(json_data, _format="json")),
     )
