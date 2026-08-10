@@ -195,8 +195,6 @@ def test_fast_init_runs_full_pipeline():
 
     m = Model(3)
 
-    # import pdb;pdb.set_trace()
-
     assert calls == [6]
     assert m.__dict__[make_private_field("x")] == 6
 

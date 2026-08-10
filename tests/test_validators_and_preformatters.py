@@ -86,7 +86,6 @@ def test_validator_with_typing_any():
 def test_nested_model_validation():
     """Test validators work with nested models."""
 
-    # import pdb;pdb.set_trace()
     class Inner(BaseModel):
         value: int
 
