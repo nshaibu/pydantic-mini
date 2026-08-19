@@ -704,6 +704,12 @@ class BaseModel(PreventOverridingMixin, metaclass=SchemaMeta):
         return getattr(cls, FORMAX_MODEL_CONFIG, None)
 
     def __setstate__(self, state: typing.Dict[str, typing.Any]) -> None:
+        return self.__set_formax_state__(state)
+
+    def __getstate__(self) -> typing.Dict[str, typing.Any]:
+        return self.__get_formax_state__()
+
+    def __set_formax_state__(self, state: typing.Dict[str, typing.Any]) -> None:
         current_state = self.__dict__
         dataclass_fields = getattr(self, "__dataclass_fields__", {})
         for field_name, value in state.items():
@@ -715,7 +721,7 @@ class BaseModel(PreventOverridingMixin, metaclass=SchemaMeta):
             if stripped_field_name in dataclass_fields:
                 current_state[field_name] = value
 
-    def __getstate__(self) -> typing.Dict[str, typing.Any]:
+    def __get_formax_state__(self) -> typing.Dict[str, typing.Any]:
         state = {}
         for field_name, value in self.__dict__.items():
             state[strip_formax_prefix(field_name)] = value
