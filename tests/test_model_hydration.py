@@ -21,7 +21,7 @@ class DataClassField(BaseModel):
 class AnnotatedDataClass(BaseModel):
     email: MiniAnnotated[
         str, Attrib(pattern=r"^[^@]+@[^@]+\.[^@]+$", max_length=13)
-    ]
+    ] # noqa: F722
     value: MiniAnnotated[int, Attrib(gt=4, lt=20, default=5)]
 
 
@@ -33,7 +33,7 @@ class UsingOptionalDataClass(BaseModel):
 class DisabledAllValidationClass(BaseModel):
     email: MiniAnnotated[
         str, Attrib(pattern=r"^[^@]+@[^@]+\.[^@]+$", max_length=13)
-    ]
+    ] # noqa: F722
     value: MiniAnnotated[int, Attrib(gt=4, lt=20, default=5)]
 
     class Config:
