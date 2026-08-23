@@ -20,8 +20,8 @@ class DataClassField(BaseModel):
 
 class AnnotatedDataClass(BaseModel):
     email: MiniAnnotated[
-        str, Attrib(pattern=r"^[^@]+@[^@]+\.[^@]+$", max_length=13)
-    ] # noqa: F722
+        str, Attrib(pattern=r"^[^@]+@[^@]+\.[^@]+$", max_length=13) # noqa: F722
+    ]
     value: MiniAnnotated[int, Attrib(gt=4, lt=20, default=5)]
 
 
@@ -32,8 +32,8 @@ class UsingOptionalDataClass(BaseModel):
 
 class DisabledAllValidationClass(BaseModel):
     email: MiniAnnotated[
-        str, Attrib(pattern=r"^[^@]+@[^@]+\.[^@]+$", max_length=13)
-    ] # noqa: F722
+        str, Attrib(pattern=r"^[^@]+@[^@]+\.[^@]+$", max_length=13) # noqa: F722
+    ]
     value: MiniAnnotated[int, Attrib(gt=4, lt=20, default=5)]
 
     class Config:
@@ -52,8 +52,6 @@ class ModelWithSetstate(BaseModel):
 
 
 class TestHydrateFormax(unittest.TestCase):
-
-
 
     def test_plain_model_hydration(self):
         """Fields are populated correctly for a plain name/age model."""
@@ -129,8 +127,6 @@ class TestHydrateFormax(unittest.TestCase):
         self.assertEqual(hydrated.email, original.email)
         self.assertEqual(hydrated.value, original.value)
 
-
-
     def test_setstate_called_when_defined(self):
         """__setstate__ is used instead of __dict__.update when present.
 
@@ -192,10 +188,8 @@ class TestHydrateFormax(unittest.TestCase):
         instance = MyModel.hydrate_formax_model({"name": "Test", "age": 5})
         self.assertNotIn("_hydrating", instance.__dict__)
 
-
-
     def test_concurrent_hydration_produces_correct_instances(self):
-        """Concurrent hydrations of the same class all produce correct results.
+        """Concurrent hydration of the same class all produce correct results.
 
         Verifies the benign-race argument: even if multiple threads race
         to wrap __init__, all produce correctly populated instances and
