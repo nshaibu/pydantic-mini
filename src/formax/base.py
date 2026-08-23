@@ -1,13 +1,13 @@
 import typing
 import keyword
 import inspect
+import functools
 from collections import OrderedDict
-from dataclasses import dataclass, Field, field, MISSING, fields
+from dataclasses import dataclass, Field, field, MISSING
 from .formatters import BaseModelFormatter
 from .typing import (
     is_mini_annotated,
     get_type,
-    get_args,
     get_forward_type,
     MiniAnnotated,
     Attrib,
@@ -53,7 +53,40 @@ from .optimised_funcs import (
 )
 
 
+T = typing.TypeVar("T", bound="BaseModel")
+
+
 __all__ = ("BaseModel",)
+
+
+_HYDRATION_WRAPPER_ATTR = "_is_hydration_wrapper"
+
+
+def _ensure_hydration_wrapper(cls: type) -> typing.Callable:
+    """Ensure cls.__init__ is the hydration wrapper, wrapping it if not."""
+    current_init = cls.__init__
+
+    if getattr(current_init, _HYDRATION_WRAPPER_ATTR, False):
+        # Already wrapped by previous hydration or a concurrent thread.
+        # The original is stored on the wrapper — return it directly.
+        return current_init._original_init
+
+    # Capture the real __init__ before replacing it.
+    original_init = current_init
+
+    @functools.wraps(original_init)
+    def _hydrating_init(self, *args, _hydrating: bool = False, **kwargs):
+        if _hydrating:
+            return
+        original_init(self, *args, **kwargs)
+
+    # Mark the wrapper so subsequent calls can detect it.
+    setattr(_hydrating_init, _HYDRATION_WRAPPER_ATTR, True)
+
+    _hydrating_init._original_init = original_init
+
+    cls.__init__ = _hydrating_init
+    return original_init
 
 
 def wrap_schema_mode_init(cls) -> typing.Callable[[typing.Any], None]:
@@ -701,10 +734,10 @@ class BaseModel(PreventOverridingMixin, metaclass=SchemaMeta):
 
     @classmethod
     def get_formax_config(cls) -> ModelConfigWrapper:
-        return getattr(cls, FORMAX_MODEL_CONFIG, None)
+        return getattr(cls, FORMAX_MODEL_CONFIG, None)  # type: ignore
 
     def __setstate__(self, state: typing.Dict[str, typing.Any]) -> None:
-        return self.__set_formax_state__(state)
+        self.__set_formax_state__(state)
 
     def __getstate__(self) -> typing.Dict[str, typing.Any]:
         return self.__get_formax_state__()
@@ -726,3 +759,24 @@ class BaseModel(PreventOverridingMixin, metaclass=SchemaMeta):
         for field_name, value in self.__dict__.items():
             state[strip_formax_prefix(field_name)] = value
         return state
+
+    @classmethod
+    def hydrate_formax_model(
+        cls: typing.Type[T],
+        state: typing.Dict[str, typing.Any],
+    ) -> T:
+        """Reconstruct a BaseModel subclass from an internal state dictionary.
+
+        Args:
+            cls: The BaseModel subclass to reconstruct.
+            state: Internal state dict as captured at checkpoint time.
+                   Applied directly without validation.
+
+        Returns:
+            A reconstructed instance of cls with state applied.
+        """
+        _ensure_hydration_wrapper(cls)
+
+        instance = cls(_hydrating=True)
+        instance.__setstate__(state)
+        return instance
